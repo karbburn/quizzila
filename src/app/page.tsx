@@ -43,13 +43,6 @@ export default function QuizzilaLive() {
     }
   }, [timeLeft, gameState, selectedOption]);
 
-  if (!isInitialized && gameState !== 'entry') {
-    return (
-      <div className="min-h-screen w-full bg-background flex items-center justify-center">
-        <div className="animate-pulse text-slate-500 font-bold tracking-widest uppercase text-xs">Initializing Session...</div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen w-full bg-background text-foreground flex items-center justify-center relative overflow-hidden font-sans">
