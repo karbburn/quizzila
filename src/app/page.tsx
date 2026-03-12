@@ -17,6 +17,7 @@ export default function QuizzilaLive() {
     setGameState,
     currentQue,
     timeLeft,
+    teamCount,
     isInitialized
   } = useGameSession();
 
@@ -40,13 +41,23 @@ export default function QuizzilaLive() {
     }
   };
 
-  // Load team from localStorage on mount
+  // Load team from localStorage on mount and verify it exists
   useEffect(() => {
     const savedTeam = localStorage.getItem('quizzila_team');
     if (savedTeam) {
-      setTeam(JSON.parse(savedTeam));
+      const parsedTeam = JSON.parse(savedTeam);
+      sessionService.isTeamValid(parsedTeam.id).then(valid => {
+        if (valid) {
+          setTeam(parsedTeam);
+        } else {
+          // If team no longer exists (e.g. after reset), clear it
+          localStorage.removeItem('quizzila_team');
+          setTeam(null);
+          setGameState('entry');
+        }
+      });
     }
-  }, []);
+  }, [setGameState]);
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -249,7 +260,7 @@ export default function QuizzilaLive() {
                     <div className="absolute inset-0 bg-blue-500/5 blur-[100px] rounded-full" />
                     <div className="relative space-y-2">
                       <span className="text-[120px] font-black tracking-tighter leading-none bg-gradient-to-b from-white to-slate-500 bg-clip-text text-transparent">
-                        {(team?.name.length ?? 0) * 7 + 12}
+                        {teamCount}
                       </span>
                       <p className="text-xl font-bold tracking-widest uppercase text-slate-500">Teams Ready</p>
                     </div>

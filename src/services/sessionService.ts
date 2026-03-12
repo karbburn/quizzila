@@ -381,5 +381,18 @@ export const sessionService = {
             .eq('question_id', questionId)
             .maybeSingle();
         return !!data;
+    },
+
+    /**
+     * Verify if a team still exists in the database (used for reset protection)
+     */
+    async isTeamValid(teamId: string): Promise<boolean> {
+        const { data, error } = await supabase
+            .from('teams')
+            .select('id')
+            .eq('id', teamId)
+            .maybeSingle();
+
+        return !!data && !error;
     }
 };

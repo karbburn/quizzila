@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { sessionService } from "@/services/sessionService";
+import { supabase } from "@/lib/supabase";
 import { type QuizState, type QuizStatus } from "@/data/session";
 
 export type ClientGameState = "entry" | "register" | "lobby" | "countdown" | "quiz" | "leaderboard" | "finished";
@@ -8,6 +9,7 @@ export function useGameSession() {
     const [gameState, setGameState] = useState<ClientGameState>("entry");
     const [currentQue, setCurrentQue] = useState(0);
     const [timeLeft, setTimeLeft] = useState(30);
+    const [teamCount, setTeamCount] = useState(0);
     const [isInitialized, setIsInitialized] = useState(false);
 
     // --- Real-time Sync Logic ---
@@ -48,19 +50,38 @@ export function useGameSession() {
     }, []);
 
     useEffect(() => {
-        // 1. Fetch initial state
         sessionService.getQuizState().then((state) => {
             if (state) {
                 handleStateUpdate(state);
-                setIsInitialized(true);
             }
         });
 
+        // 1.1 Fetch team count
+        sessionService.getTeamCount().then((count) => {
+            setTeamCount(count);
+            setIsInitialized(true);
+        });
+
         // 2. Subscribe to real-time updates
-        const subscription = sessionService.subscribeToState(handleStateUpdate);
+        const stateSub = sessionService.subscribeToState(handleStateUpdate);
+
+        // 2.1 Subscribe to team updates
+        const teamSub = sessionService.subscribeToTeams(() => {
+            sessionService.getTeamCount().then(setTeamCount);
+        });
+
+        // 2.2 Subscribe to team removals (for reset)
+        const teamDeleteSub = supabase
+            .channel('teams-delete-channel')
+            .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'teams' }, () => {
+                sessionService.getTeamCount().then(setTeamCount);
+            })
+            .subscribe();
 
         return () => {
-            subscription.unsubscribe();
+            stateSub.unsubscribe();
+            teamSub.unsubscribe();
+            teamDeleteSub.unsubscribe();
         };
     }, [handleStateUpdate]);
 
@@ -81,6 +102,7 @@ export function useGameSession() {
         currentQue,
         timeLeft,
         setTimeLeft,
+        teamCount,
         isInitialized
     };
 }
