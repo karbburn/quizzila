@@ -8,17 +8,39 @@ export const sessionService = {
      * Fetch the current active session
      */
     async getSession(): Promise<GameSession | null> {
-        const { data, error } = await supabase
-            .from('game_sessions')
-            .select('*')
-            .eq('id', SESSION_ID)
-            .single();
+        console.log('Fetching session for ID:', SESSION_ID);
+        try {
+            const { data, error } = await supabase
+                .from('game_sessions')
+                .select('*')
+                .eq('id', SESSION_ID)
+                .single();
 
-        if (error) {
-            console.error('Error fetching session:', error);
+            if (error) {
+                // PGRST116 means "No rows found" when using .single()
+                if (error.code === 'PGRST116') {
+                    console.log('Session not found, creating initial row...');
+                    const { data: newData, error: createError } = await supabase
+                        .from('game_sessions')
+                        .insert([{ id: SESSION_ID, status: 'LOBBY', current_question_index: 0 }])
+                        .select()
+                        .single();
+
+                    if (createError) {
+                        console.error('Failed to create initial session:', createError.message);
+                        return null;
+                    }
+                    return newData as GameSession;
+                }
+
+                console.error('Error fetching session:', error.message || error);
+                return null;
+            }
+            return data as GameSession;
+        } catch (err) {
+            console.error('Unexpected error in getSession:', err);
             return null;
         }
-        return data as GameSession;
     },
 
     /**
