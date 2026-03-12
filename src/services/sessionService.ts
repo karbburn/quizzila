@@ -179,8 +179,8 @@ export const sessionService = {
      * Reset the quiz for the admin
      */
     async resetQuiz() {
-        const { error: answersError } = await supabase.from('answers').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-        const { error: teamsError } = await supabase.from('teams').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+        const { error: answersError } = await supabase.from('answers').delete().gte('points_awarded', 0);
+        const { error: teamsError } = await supabase.from('teams').delete().not('id', 'is', null);
 
         if (answersError) console.error('Error clearing answers:', answersError.message);
         if (teamsError) console.error('Error clearing teams:', teamsError.message);
