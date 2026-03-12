@@ -76,7 +76,17 @@ export default function QuizzilaLive() {
   // Reset local state when question changes
   useEffect(() => {
     setSelectedOption(null);
-  }, [currentQue]);
+
+    // Check if team already answered this question (persistence)
+    if (team && gameState === "quiz") {
+      sessionService.hasAnswered(team.id, quizQuestions[currentQue].numb.toString())
+        .then(answered => {
+          if (answered) {
+            setSelectedOption("ALREADY_ANSWERED" as any); // Lock UI
+          }
+        });
+    }
+  }, [currentQue, team, gameState, quizQuestions]);
 
   const handleOptionClick = async (option: string) => {
     if (selectedOption || gameState !== "quiz") return;
@@ -231,7 +241,7 @@ export default function QuizzilaLive() {
                     <div className="text-center space-y-1">
                       <h1 className="text-3xl font-black tracking-tighter uppercase text-yellow-500 leading-none">Starting Soon</h1>
                       <div className="inline-block px-3 py-1 bg-blue-500/10 border border-blue-500/20 rounded-full">
-                        <p className="text-blue-400 font-bold uppercase tracking-widest text-[8px]">Team: {team.name}</p>
+                        <p className="text-blue-400 font-bold uppercase tracking-widest text-[8px]">Team: {team?.name || 'Loading...'}</p>
                       </div>
                     </div>
                   </div>
@@ -239,7 +249,7 @@ export default function QuizzilaLive() {
                     <div className="absolute inset-0 bg-blue-500/5 blur-[100px] rounded-full" />
                     <div className="relative space-y-2">
                       <span className="text-[120px] font-black tracking-tighter leading-none bg-gradient-to-b from-white to-slate-500 bg-clip-text text-transparent">
-                        {team.name.length * 7 + 12}
+                        {(team?.name.length ?? 0) * 7 + 12}
                       </span>
                       <p className="text-xl font-bold tracking-widest uppercase text-slate-500">Teams Ready</p>
                     </div>
