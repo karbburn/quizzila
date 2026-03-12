@@ -101,9 +101,6 @@ export default function QuizzilaLive() {
             {/* ENTRY: Landing Page */}
             {gameState === "entry" && (
               <div className="text-center space-y-10 animate-in fade-in zoom-in duration-700">
-                <div className="absolute top-8 right-8">
-                  <ToggleTheme />
-                </div>
                 <div className="space-y-4">
                   <div className="inline-block p-1 bg-white rounded-3xl mb-4 border border-yellow-500/20 overflow-hidden shadow-2xl">
                     <img
@@ -233,7 +230,6 @@ export default function QuizzilaLive() {
           </div>
 
           <div className="fixed top-8 right-8 flex items-center gap-4 animate-in fade-in duration-500 z-50">
-            <ToggleTheme />
             <div className="flex items-center gap-3 bg-card backdrop-blur-md border border-border p-3 rounded-2xl shadow-2xl">
               <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center overflow-hidden border border-yellow-500/20 shadow-lg">
                 <img src="/tqm_logo.jpg" alt="TQM" className="w-full h-full object-contain" />
