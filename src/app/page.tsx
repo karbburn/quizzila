@@ -17,6 +17,7 @@ export default function QuizzilaLive() {
     quizStatus,
     setGameState,
     currentQue,
+    currentQuestionData,
     timeLeft,
     teamCount,
     isInitialized
@@ -25,7 +26,9 @@ export default function QuizzilaLive() {
   const [quizQuestions] = useState<Question[]>(initialQuestions);
   const [score, setScore] = useState(0);
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
+  const [answerStats, setAnswerStats] = useState<{ A: number; B: number; C: number; D: number; total: number } | null>(null);
   const [team, setTeam] = useState<{ id: string, name: string } | null>(null);
+  const [leaderboard, setLeaderboard] = useState<{ team_name: string; score: number; rank: number }[]>([]);
   const [regData, setRegData] = useState({ teamName: '', member1: '', member2: '', member3: '', member4: '' });
   const [isRegistering, setIsRegistering] = useState(false);
   const [nameTaken, setNameTaken] = useState(false);
@@ -141,9 +144,25 @@ export default function QuizzilaLive() {
   // Auto-timeout logic (local)
   useEffect(() => {
     if (timeLeft === 0 && gameState === "quiz" && !selectedOption) {
-      handleOptionClick("");
+      handleOptionClick("TIMEOUT");
     }
   }, [timeLeft, gameState, selectedOption]);
+
+  // Fetch stats during reveal
+  useEffect(() => {
+    if (gameState === "reveal" && currentQuestionData?.id) {
+      sessionService.getAnswerStats(currentQuestionData.id).then(setAnswerStats);
+    } else {
+      setAnswerStats(null);
+    }
+  }, [gameState, currentQuestionData?.id]);
+
+  // Fetch leaderboard when triggered
+  useEffect(() => {
+    if (gameState === "leaderboard") {
+      sessionService.getLeaderboard(10).then(setLeaderboard);
+    }
+  }, [gameState]);
 
 
   return (
@@ -154,7 +173,7 @@ export default function QuizzilaLive() {
 
 
       {/* 1. PRE-GAME STATES (Wrapped in Infinite Grid) */}
-      {gameState !== "quiz" && gameState !== "finished" ? (
+      {gameState !== "quiz" && gameState !== "finished" && gameState !== "reveal" && gameState !== "leaderboard" ? (
         <TheInfiniteGrid className="absolute inset-0">
           <div className="z-10 w-full max-w-2xl px-6">
 
@@ -389,7 +408,7 @@ export default function QuizzilaLive() {
           </div>
 
           <div className="z-10 w-full max-w-2xl">
-            {/* QUIZ */}
+            {/* QUIZ: Question + Submission */}
             {gameState === "quiz" && (
               <div className="space-y-6 animate-in fade-in duration-500">
                 <header className="flex justify-between items-center bg-card backdrop-blur-md p-6 rounded-3xl border border-border shadow-xl relative overflow-hidden">
@@ -399,7 +418,7 @@ export default function QuizzilaLive() {
                   <div className="absolute bottom-0 left-0 h-1 bg-gradient-to-r from-blue-500 to-purple-500 transition-all duration-1000" style={{ width: `${(timeLeft / 30) * 100}%` }} />
                   <div>
                     <span className="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-1 block">Phase</span>
-                    <p className="text-lg font-black tracking-tight">{quizQuestions[currentQue].numb} <span className="text-slate-500 font-normal">/ {quizQuestions.length}</span></p>
+                    <p className="text-lg font-black tracking-tight">{(currentQue + 1)} <span className="text-slate-500 font-normal">/ {quizQuestions.length}</span></p>
                   </div>
                   <div className="flex items-center gap-2">
                     {gameState === "quiz" && !selectedOption && (
@@ -414,34 +433,143 @@ export default function QuizzilaLive() {
                     </div>
                   </div>
                 </header>
-
                 <div className="bg-card backdrop-blur-xl border border-border p-10 rounded-[2.5rem] shadow-2xl space-y-8">
-                  <h2 className="text-2xl font-bold leading-tight">{quizQuestions[currentQue].question}</h2>
-                  <div className="grid gap-4">
-                    {quizQuestions[currentQue].options.map((option, i) => {
-                      const isCorrect = option === quizQuestions[currentQue].answer;
-                      const isSelected = selectedOption === option;
-                      const shouldShowFeedback = selectedOption !== null || timeLeft === 0;
-                      return (
-                        <button
-                          key={i}
-                          disabled={shouldShowFeedback}
-                          onClick={() => handleOptionClick(option)}
-                          className={cn(
-                            "group relative flex items-center justify-between p-5 rounded-2xl border transition-all duration-300 text-left",
-                            !shouldShowFeedback && "border-white/10 hover:border-blue-500/50 hover:bg-white/5 bg-white/2 hover:pl-8",
-                            shouldShowFeedback && isCorrect && "border-emerald-500/50 bg-emerald-500/10 text-emerald-400",
-                            isSelected && !isCorrect && "border-red-500/50 bg-red-500/10 text-red-400",
-                            shouldShowFeedback && !isCorrect && !isSelected && "opacity-40 grayscale"
-                          )}
-                        >
-                          <span className="font-semibold">{option}</span>
-                          {shouldShowFeedback && isCorrect && <Check className="w-5 h-5 text-emerald-400" />}
-                          {isSelected && !isCorrect && <X className="w-5 h-5 text-red-500" />}
-                        </button>
-                      );
-                    })}
+                  <h2 className="text-2xl font-bold leading-tight">{currentQuestionData?.text || "Loading question..."}</h2>
+
+                  {selectedOption ? (
+                    <div className="flex flex-col items-center justify-center py-12 space-y-6 animate-in zoom-in duration-500">
+                      <div className="relative">
+                        <div className="absolute inset-0 bg-blue-500/20 blur-3xl animate-pulse" />
+                        <BrainCircuit className="w-20 h-20 text-blue-400 relative animate-spin-slow" />
+                      </div>
+                      <div className="text-center space-y-2">
+                        <h3 className="text-2xl font-black uppercase tracking-tighter">Answer Submitted</h3>
+                        <p className="text-slate-400 font-medium uppercase tracking-widest text-[10px]">Waiting for other teams...</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="grid gap-4">
+                      {(currentQuestionData?.options || []).map((option: string, i: number) => {
+                        const letter = ['A', 'B', 'C', 'D'][i];
+                        return (
+                          <button
+                            key={i}
+                            onClick={() => handleOptionClick(option)}
+                            className="group relative flex items-center justify-between p-5 rounded-2xl border border-white/10 hover:border-yellow-500/50 hover:bg-white/5 bg-white/2 transition-all duration-300 text-left hover:pl-8 active:scale-[0.98]"
+                          >
+                            <div className="flex items-center gap-4">
+                              <span className="text-xl font-black text-slate-500 group-hover:text-yellow-500 transition-colors">{letter}</span>
+                              <span className="font-semibold">{option}</span>
+                            </div>
+                            <div className="w-1.5 h-1.5 rounded-full bg-slate-700 group-hover:bg-yellow-500 transition-all group-hover:scale-150" />
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* REVEAL: Result + Stats */}
+            {gameState === "reveal" && (
+              <div className="space-y-6 animate-in fade-in zoom-in duration-500">
+                <header className="bg-card backdrop-blur-md p-6 rounded-3xl border border-border shadow-xl text-center">
+                  <h2 className="text-sm font-black uppercase tracking-[0.3em] text-orange-400 mb-1">Answer Reveal</h2>
+                  <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">Question {currentQue + 1}</p>
+                </header>
+
+                <div className="bg-card backdrop-blur-xl border border-border p-10 rounded-[2.5rem] shadow-2xl space-y-8 text-center bg-gradient-to-b from-card to-card/50">
+                  <div className="space-y-4">
+                    <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Correct Answer</p>
+                    <div className="inline-block px-8 py-4 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl">
+                      <p className="text-3xl font-black text-emerald-400 uppercase italic tracking-tighter">
+                        {currentQuestionData?.correct_option}: {currentQuestionData?.options?.[['A', 'B', 'C', 'D'].indexOf(currentQuestionData?.correct_option || 'A')]}
+                      </p>
+                    </div>
                   </div>
+
+                  <div className="h-px bg-border/50 w-2/3 mx-auto" />
+
+                  <div className="space-y-6">
+                    <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Your Result</p>
+                    {selectedOption === (currentQuestionData?.options && currentQuestionData?.correct_option ? currentQuestionData.options[['A', 'B', 'C', 'D'].indexOf(currentQuestionData.correct_option)] : null) ? (
+                      <div className="space-y-3 animate-bounce">
+                        <div className="w-20 h-20 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto border border-emerald-500/30">
+                          <Check className="w-12 h-12 text-emerald-500" />
+                        </div>
+                        <p className="text-3xl font-black text-white uppercase italic">Correct!</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        <div className="w-20 h-20 bg-red-500/20 rounded-full flex items-center justify-center mx-auto border border-red-500/30">
+                          <X className="w-12 h-12 text-red-500" />
+                        </div>
+                        <p className="text-3xl font-black text-slate-300 uppercase italic">Incorrect</p>
+                        <p className="text-xs text-slate-500 font-bold uppercase tracking-widest">You selected: {selectedOption || 'No Answer'}</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Stats Visualization */}
+                  {answerStats && (
+                    <div className="pt-8 space-y-4">
+                      <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Live Distribution</p>
+                      <div className="grid grid-cols-4 gap-3 items-end h-24">
+                        {['A', 'B', 'C', 'D'].map(opt => {
+                          const count = (answerStats as any)[opt];
+                          const height = answerStats.total > 0 ? (count / answerStats.total) * 100 : 0;
+                          const isCorrect = currentQuestionData?.correct_option === opt;
+                          return (
+                            <div key={opt} className="space-y-2 flex flex-col items-center group">
+                              <div className="text-[9px] font-black text-slate-400 group-hover:text-white transition-colors">{count}</div>
+                              <div className="w-full bg-slate-800 rounded-t-lg relative overflow-hidden transition-all duration-1000" style={{ height: `${Math.max(height, 8)}%` }}>
+                                <div className={cn("absolute inset-0", isCorrect ? "bg-emerald-500" : "bg-blue-500/40")} />
+                              </div>
+                              <div className={cn("text-xs font-black p-1 rounded-md w-full", isCorrect ? "bg-emerald-500/20 text-emerald-400" : "text-slate-500")}>{opt}</div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* LEADERBOARD */}
+            {gameState === "leaderboard" && (
+              <div className="space-y-6 animate-in fade-in zoom-in duration-500">
+                <header className="bg-card backdrop-blur-md p-6 rounded-3xl border border-border shadow-xl text-center">
+                  <Trophy className="w-12 h-12 text-yellow-500 mx-auto mb-3 animate-bounce" />
+                  <h2 className="text-sm font-black uppercase tracking-[0.3em] text-yellow-500 mb-1">Current Standings</h2>
+                  <p className="text-white text-2xl font-black uppercase tracking-widest">Top Teams</p>
+                </header>
+
+                <div className="bg-card backdrop-blur-xl border border-border p-8 rounded-[2.5rem] shadow-2xl space-y-4">
+                  {leaderboard.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-12">
+                      <div className="w-10 h-10 border-4 border-yellow-500 border-t-transparent rounded-full animate-spin mb-4" />
+                      <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Compiling Scores...</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {leaderboard.map((team, idx) => (
+                        <div key={idx} className={cn("flex items-center gap-4 p-4 rounded-2xl border transition-all", idx === 0 ? "bg-yellow-500/10 border-yellow-500/30 shadow-[0_0_30px_-5px_rgba(234,179,8,0.3)]" : idx === 1 ? "bg-slate-300/10 border-slate-300/20" : idx === 2 ? "bg-amber-700/10 border-amber-700/30" : "bg-white/5 border-white/5")}>
+                          <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center font-black text-lg shadow-inner", idx === 0 ? "bg-yellow-500 text-black" : idx === 1 ? "bg-slate-300 text-black" : idx === 2 ? "bg-amber-600 text-black" : "bg-slate-800 text-slate-400")}>
+                            {idx + 1}
+                          </div>
+                          <div className="flex-1 truncate">
+                            <h3 className={cn("font-bold truncate text-lg", idx === 0 ? "text-yellow-500" : "text-white")}>{team.team_name}</h3>
+                          </div>
+                          <div className="text-right">
+                            <span className={cn("font-black text-xl tabular-nums", idx === 0 ? "text-yellow-500" : "text-white")}>{team.score}</span>
+                            <span className="text-[10px] text-slate-500 uppercase font-bold ml-1">pts</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             )}

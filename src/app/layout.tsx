@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Karbburn Quiz",
-  description: "Professional TQM Assessment Platform",
+  description: "Professional Quiz Platform by Sourabh",
 };
 
 import { ThemeProvider } from "@/components/theme-provider";

@@ -23,6 +23,7 @@ export default function AdminDashboard() {
     // Live Control
     const [teamCount, setTeamCount] = useState(0);
     const [teams, setTeams] = useState<{ name: string; score: number; answers: number }[]>([]);
+    const [allTeams, setAllTeams] = useState<{ team_name: string; member1: string; created_at: string }[]>([]);
     const [answerStats, setAnswerStats] = useState<{ A: number; B: number; C: number; D: number; total: number }>({ A: 0, B: 0, C: 0, D: 0, total: 0 });
     const [questions, setQuestions] = useState<any[]>([]);
     const [answersLocked, setAnswersLocked] = useState(false);
@@ -52,15 +53,19 @@ export default function AdminDashboard() {
     }, []);
 
     const loadTeams = useCallback(async () => {
-        const { data } = await supabase.from('teams').select('team_name, score').order('score', { ascending: false }).limit(10);
-        if (data) {
-            // Get answer counts for each team
-            const teamsWithAnswers = await Promise.all(data.map(async (t: any) => {
+        // Top 10 for Realtime Leaderboard preview
+        const { data: topData } = await supabase.from('teams').select('id, team_name, score').order('score', { ascending: false }).limit(10);
+        if (topData) {
+            const teamsWithAnswers = await Promise.all(topData.map(async (t: any) => {
                 const { count } = await supabase.from('answers').select('*', { count: 'exact', head: true }).eq('team_id', t.id);
                 return { name: t.team_name, score: t.score, answers: count ?? 0 };
             }));
             setTeams(teamsWithAnswers);
         }
+
+        // All teams for Teams Joined Monitor
+        const { data: allData } = await supabase.from('teams').select('team_name, member1, created_at').order('created_at', { ascending: true });
+        if (allData) setAllTeams(allData);
     }, []);
 
     // ── Init ──
@@ -130,7 +135,10 @@ export default function AdminDashboard() {
         next < questions.length ? sessionService.startQuestion(next, timerDuration) : sessionService.endQuiz();
     };
     const handleShowLeaderboard = async () => { await sessionService.showLeaderboard(); await loadTeams(); };
-    const handleRevealAnswer = () => setAnswersLocked(true); // Visual reveal on admin side
+    const handleRevealAnswer = async () => {
+        await sessionService.revealAnswer();
+        setAnswersLocked(true);
+    };
     const handleSkip = () => handleNextQuestion();
     const handleLockAnswers = () => setAnswersLocked(true);
     const handleEndQuiz = () => {
@@ -144,7 +152,7 @@ export default function AdminDashboard() {
             message: "This will remove all teams and answers.",
             onConfirm: () => {
                 sessionService.resetQuiz();
-                setTeamCount(0); setTeams([]); setAnswerStats({ A: 0, B: 0, C: 0, D: 0, total: 0 });
+                setTeamCount(0); setTeams([]); setAllTeams([]); setAnswerStats({ A: 0, B: 0, C: 0, D: 0, total: 0 });
                 setConfirmAction(null);
             }
         });
@@ -191,6 +199,7 @@ export default function AdminDashboard() {
         waiting: "bg-yellow-500",
         countdown: "bg-blue-500",
         question_active: "bg-emerald-500",
+        answer_reveal: "bg-orange-500",
         leaderboard: "bg-purple-500",
         finished: "bg-red-500"
     };
@@ -320,6 +329,7 @@ export default function AdminDashboard() {
                             <div className="ml-auto flex items-center gap-3 bg-slate-800/50 px-4 py-2 rounded-lg border border-slate-700">
                                 <span className="flex items-center gap-1.5 text-[10px]"><span className={cn("w-2 h-2 rounded-full", quizState?.status === 'waiting' ? "bg-yellow-500" : "bg-slate-600")} /> Waiting</span>
                                 <span className="flex items-center gap-1.5 text-[10px]"><span className={cn("w-2 h-2 rounded-full", quizState?.status === 'question_active' ? "bg-emerald-500" : "bg-slate-600")} /> Active</span>
+                                <span className="flex items-center gap-1.5 text-[10px]"><span className={cn("w-2 h-2 rounded-full", quizState?.status === 'answer_reveal' ? "bg-orange-500" : "bg-slate-600")} /> Reveal</span>
                                 <span className="flex items-center gap-1.5 text-[10px]"><span className={cn("w-2 h-2 rounded-full", quizState?.status === 'leaderboard' ? "bg-purple-500" : "bg-slate-600")} /> Leaderboard</span>
                                 <span className="flex items-center gap-1.5 text-[10px]"><span className={cn("w-2 h-2 rounded-full", quizState?.status === 'finished' ? "bg-red-500" : "bg-slate-600")} /> Finished</span>
                             </div>
@@ -388,26 +398,51 @@ export default function AdminDashboard() {
                                         );
                                     })}
                                 </div>
+                            </div>
+                        </div>
 
-                                {/* Teams Joined / Leaderboard */}
-                                <div className="bg-card border border-slate-700 rounded-lg p-5 space-y-3">
-                                    <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Teams Joined: Leaderboard</p>
-                                    {teams.length === 0 ? (
+                        {/* ── Teams & Leaderboard Section ── */}
+                        <hr className="border-slate-800 my-4" />
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {/* Left: Teams Joined Monitor */}
+                            <div className="bg-card border border-slate-700 rounded-lg p-5 space-y-3">
+                                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Teams Joined Monitor: <span className="text-white">{teamCount} Teams</span></p>
+                                <div className="space-y-1 max-h-[350px] overflow-y-auto pr-2">
+                                    {allTeams.length === 0 ? (
                                         <p className="text-slate-500 text-xs italic">No teams joined yet</p>
                                     ) : (
-                                        <div className="space-y-1 max-h-[300px] overflow-y-auto">
-                                            {teams.map((t, i) => (
-                                                <div key={i} className="flex items-center gap-2 py-1 text-xs">
-                                                    <span className="text-slate-500 font-bold w-5 tabular-nums">{i + 1}.</span>
-                                                    <span className="font-bold flex-1">{t.name}</span>
-                                                    <span className="text-slate-500">—</span>
-                                                    <span className="font-bold text-yellow-400 tabular-nums">{t.score} pts</span>
-                                                    <span className="text-slate-600 tabular-nums ml-4">Answers: {t.answers}</span>
+                                        allTeams.map((t, i) => (
+                                            <div key={i} className="flex flex-col sm:flex-row justify-between sm:items-center py-2 border-b border-slate-700/50 last:border-0 gap-1">
+                                                <div className="flex flex-col">
+                                                    <span className="font-bold text-sm text-slate-200">{t.team_name}</span>
+                                                    <span className="text-slate-500 text-[10px] uppercase tracking-wider">Leader: <span className="text-slate-400">{t.member1}</span></span>
                                                 </div>
-                                            ))}
-                                        </div>
+                                                <span className="text-slate-500 text-[10px] bg-slate-800/50 px-2 py-1 rounded inline-block w-max">
+                                                    Joined {new Date(t.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                </span>
+                                            </div>
+                                        ))
                                     )}
                                 </div>
+                            </div>
+
+                            {/* Right: Realtime Leaderboard Preview */}
+                            <div className="bg-card border border-slate-700 rounded-lg p-5 space-y-3 relative flex flex-col">
+                                <div className="absolute top-4 right-5"><span className="text-[9px] uppercase tracking-widest text-purple-400 font-bold bg-purple-500/10 px-2 py-1 rounded">Admin Only Preview</span></div>
+                                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-4">Realtime Leaderboard</p>
+                                {teams.length === 0 ? (
+                                    <p className="text-slate-500 text-xs italic">No scores yet</p>
+                                ) : (
+                                    <div className="space-y-1 max-h-[350px] overflow-y-auto pr-2 mt-2">
+                                        {teams.map((t, i) => (
+                                            <div key={i} className="flex items-center gap-3 py-2 text-sm border-b border-slate-700/50 last:border-0">
+                                                <span className="text-slate-500 font-bold w-6 tabular-nums">{i + 1}.</span>
+                                                <span className="font-bold flex-1 text-slate-200 truncate">{t.name} <span className="ml-2 text-[10px] text-slate-500 font-normal">({t.answers} answers)</span></span>
+                                                <span className="font-black text-yellow-500 tabular-nums text-right">{t.score} pts</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>

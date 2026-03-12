@@ -158,6 +158,15 @@ export const sessionService = {
     },
 
     /**
+     * Reveal the answer for the current question
+     */
+    async revealAnswer() {
+        return this.updateQuizState({
+            status: 'answer_reveal'
+        });
+    },
+
+    /**
      * Show the leaderboard
      */
     async showLeaderboard() {
@@ -376,7 +385,7 @@ export const sessionService = {
     },
 
     /**
-     * Get all questions ordered
+     * Get all questions ordered (Admin only - includes correct_option)
      */
     async getQuestions() {
         const { data, error } = await supabase
@@ -385,6 +394,15 @@ export const sessionService = {
             .order('order_index', { ascending: true });
         if (error) return [];
         return data ?? [];
+    },
+
+    /**
+     * Get the current question securely (Participant - hides answer if not reveal state)
+     */
+    async getCurrentQuestionSecure(): Promise<any | null> {
+        const { data, error } = await supabase.rpc('get_current_question_secure');
+        if (error || !data || data.length === 0) return null;
+        return data[0];
     },
 
     /**

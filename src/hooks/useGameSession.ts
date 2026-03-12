@@ -3,12 +3,13 @@ import { sessionService } from "@/services/sessionService";
 import { supabase } from "@/lib/supabase";
 import { type QuizState, type QuizStatus } from "@/data/session";
 
-export type ClientGameState = "entry" | "register" | "lobby" | "countdown" | "quiz" | "leaderboard" | "finished";
+export type ClientGameState = "entry" | "register" | "lobby" | "countdown" | "quiz" | "reveal" | "leaderboard" | "finished";
 
 export function useGameSession() {
     const [gameState, setGameState] = useState<ClientGameState>("entry");
     const [quizStatus, setQuizStatus] = useState<QuizStatus>("waiting");
     const [currentQue, setCurrentQue] = useState(0);
+    const [currentQuestionData, setCurrentQuestionData] = useState<any | null>(null);
     const [timeLeft, setTimeLeft] = useState(30);
     const [teamCount, setTeamCount] = useState(0);
     const [isInitialized, setIsInitialized] = useState(false);
@@ -44,10 +45,19 @@ export function useGameSession() {
             } else {
                 setTimeLeft(30);
             }
+        } else if (state.status === 'answer_reveal') {
+            setGameState('reveal');
         } else if (state.status === 'leaderboard') {
             setGameState('leaderboard');
         } else if (state.status === 'finished') {
             setGameState('finished');
+        }
+
+        // Fetch question data securely (prevents answer leaks)
+        if (state.status === 'question_active' || state.status === 'answer_reveal') {
+            sessionService.getCurrentQuestionSecure().then(setCurrentQuestionData);
+        } else {
+            setCurrentQuestionData(null);
         }
     }, []);
 
@@ -103,6 +113,7 @@ export function useGameSession() {
         quizStatus,
         setGameState,
         currentQue,
+        currentQuestionData,
         timeLeft,
         setTimeLeft,
         teamCount,
