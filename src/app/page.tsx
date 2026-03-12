@@ -130,6 +130,9 @@ export default function QuizzilaLive() {
                 {!team ? (
                   <form onSubmit={handleRegister} className="bg-card/50 backdrop-blur-xl border border-border p-8 rounded-[2rem] space-y-6">
                     <div className="text-center space-y-2">
+                      <div className="w-16 h-16 bg-white rounded-2xl mx-auto mb-2 flex items-center justify-center overflow-hidden border border-yellow-500/20 shadow-lg">
+                        <img src="/tqm_logo.jpg" alt="TQM Logo" className="w-full h-full object-contain" />
+                      </div>
                       <h3 className="text-2xl font-black tracking-tight text-yellow-500 uppercase">Team Join</h3>
                       <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Auditorium Entry</p>
                     </div>
