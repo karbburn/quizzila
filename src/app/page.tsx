@@ -27,6 +27,7 @@ export default function QuizzilaLive() {
   const [score, setScore] = useState(0);
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [answerStats, setAnswerStats] = useState<{ A: number; B: number; C: number; D: number; total: number } | null>(null);
+  const [submissionLatency, setSubmissionLatency] = useState<number | null>(null);
   const [team, setTeam] = useState<{ id: string, name: string } | null>(null);
   const [leaderboard, setLeaderboard] = useState<{ team_name: string; score: number; rank: number }[]>([]);
   const [regData, setRegData] = useState({ teamName: '', member1: '', member2: '', member3: '', member4: '' });
@@ -127,13 +128,18 @@ export default function QuizzilaLive() {
     if (selectedOption || gameState !== "quiz") return;
     setSelectedOption(option);
 
+    const startTime = performance.now();
+
     if (team) {
       await sessionService.submitAnswer({
         team_id: team.id,
-        question_id: quizQuestions[currentQue].numb.toString(), // Using numb as fallback if id is missing, or update Question type
+        question_id: quizQuestions[currentQue].numb.toString(),
         selected_option: (['A', 'B', 'C', 'D'][quizQuestions[currentQue].options.indexOf(option)] || 'A') as 'A' | 'B' | 'C' | 'D',
         is_correct: option === quizQuestions[currentQue].answer,
       }, timeLeft);
+
+      const endTime = performance.now();
+      setSubmissionLatency(Math.round(endTime - startTime));
     }
 
     if (option === quizQuestions[currentQue].answer) {
@@ -444,7 +450,15 @@ export default function QuizzilaLive() {
                       </div>
                       <div className="text-center space-y-2">
                         <h3 className="text-2xl font-black uppercase tracking-tighter">Answer Submitted</h3>
-                        <p className="text-slate-400 font-medium uppercase tracking-widest text-[10px]">Waiting for other teams...</p>
+                        <div className="flex flex-col items-center gap-1">
+                          <p className="text-slate-400 font-medium uppercase tracking-widest text-[10px]">Waiting for other teams...</p>
+                          {submissionLatency !== null && (
+                            <p className="text-[10px] text-emerald-500/80 font-bold uppercase tracking-wider flex items-center gap-1">
+                              <span className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse" />
+                              Reached server in {submissionLatency}ms
+                            </p>
+                          )}
+                        </div>
                       </div>
                     </div>
                   ) : (
