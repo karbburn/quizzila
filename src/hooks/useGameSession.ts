@@ -7,6 +7,7 @@ export type ClientGameState = "entry" | "register" | "lobby" | "countdown" | "qu
 
 export function useGameSession() {
     const [gameState, setGameState] = useState<ClientGameState>("entry");
+    const [quizStatus, setQuizStatus] = useState<QuizStatus>("waiting");
     const [currentQue, setCurrentQue] = useState(0);
     const [timeLeft, setTimeLeft] = useState(30);
     const [teamCount, setTeamCount] = useState(0);
@@ -14,6 +15,7 @@ export function useGameSession() {
 
     // --- Real-time Sync Logic ---
     const handleStateUpdate = useCallback((state: QuizState) => {
+        setQuizStatus(state.status);
         setCurrentQue(state.current_question);
 
         // Map database status to client state
@@ -98,6 +100,7 @@ export function useGameSession() {
 
     return {
         gameState,
+        quizStatus,
         setGameState,
         currentQue,
         timeLeft,

@@ -14,6 +14,7 @@ import { sessionService } from "@/services/sessionService";
 export default function QuizzilaLive() {
   const {
     gameState,
+    quizStatus,
     setGameState,
     currentQue,
     timeLeft,
@@ -27,6 +28,8 @@ export default function QuizzilaLive() {
   const [team, setTeam] = useState<{ id: string, name: string } | null>(null);
   const [regData, setRegData] = useState({ teamName: '', member1: '', member2: '', member3: '', member4: '' });
   const [isRegistering, setIsRegistering] = useState(false);
+  const [nameTaken, setNameTaken] = useState(false);
+  const [showWelcome, setShowWelcome] = useState(false);
   const [showAdminLogin, setShowAdminLogin] = useState(false);
   const [adminCreds, setAdminCreds] = useState({ username: '', password: '' });
   const [adminError, setAdminError] = useState('');
@@ -49,37 +52,55 @@ export default function QuizzilaLive() {
       sessionService.isTeamValid(parsedTeam.id).then(valid => {
         if (valid) {
           setTeam(parsedTeam);
+          // If team is valid, move to lobby immediately
+          setGameState('lobby');
         } else {
-          // If team no longer exists (e.g. after reset), clear it
           localStorage.removeItem('quizzila_team');
           setTeam(null);
-          setGameState('entry');
         }
       });
     }
   }, [setGameState]);
 
+  // Duplicate Team Name Check
+  useEffect(() => {
+    if (regData.teamName.trim().length > 0) {
+      const timer = setTimeout(async () => {
+        const taken = await sessionService.isTeamNameTaken(regData.teamName);
+        setNameTaken(taken);
+      }, 500);
+      return () => clearTimeout(timer);
+    } else {
+      setNameTaken(false);
+    }
+  }, [regData.teamName]);
+
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!regData.teamName || !regData.member1) return;
+    if (!regData.teamName.trim() || !regData.member1.trim() || nameTaken) return;
+    if (quizStatus !== 'waiting') return; // Lock if quiz started
 
     setIsRegistering(true);
     const device_id = 'dev_' + Math.random().toString(36).substr(2, 9);
 
     const newTeam = await sessionService.registerTeam({
-      team_name: regData.teamName,
-      member1: regData.member1,
-      member2: regData.member2 || undefined,
-      member3: regData.member3 || undefined,
-      member4: regData.member4 || undefined,
+      team_name: regData.teamName.trim(),
+      member1: regData.member1.trim(),
+      member2: regData.member2.trim() || undefined,
+      member3: regData.member3.trim() || undefined,
+      member4: regData.member4.trim() || undefined,
       device_id
     });
 
     if (newTeam) {
       const teamInfo = { id: newTeam.id, name: newTeam.team_name };
-      setTeam(teamInfo);
-      localStorage.setItem('quizzila_team', JSON.stringify(teamInfo));
-      setGameState('lobby');
+      setShowWelcome(true);
+      setTimeout(() => {
+        setTeam(teamInfo);
+        localStorage.setItem('quizzila_team', JSON.stringify(teamInfo));
+        setGameState('lobby');
+        setShowWelcome(false);
+      }, 2000);
     }
     setIsRegistering(false);
   };
@@ -194,50 +215,103 @@ export default function QuizzilaLive() {
 
             {(gameState as string) === "register" && (
               <div className="w-full max-w-md mx-auto animate-in fade-in slide-in-from-bottom-8 duration-700">
-                <form onSubmit={handleRegister} className="bg-card/50 backdrop-blur-xl border border-border p-8 rounded-[2rem] space-y-6">
-                  <div className="text-center space-y-2">
-                    <div className="w-16 h-16 bg-white rounded-2xl mx-auto mb-2 flex items-center justify-center overflow-hidden border border-yellow-500/20 shadow-lg">
-                      <img src="/tqm_logo.jpg" alt="TQM Logo" className="w-full h-full object-contain" />
+                {showWelcome ? (
+                  <div className="bg-card/50 backdrop-blur-xl border border-border p-12 rounded-[3.5rem] shadow-2xl text-center space-y-6 animate-in zoom-in duration-500">
+                    <div className="relative inline-block">
+                      <div className="absolute inset-0 bg-yellow-500/20 blur-3xl rounded-full" />
+                      <div className="relative p-6 bg-white rounded-3xl shadow-2xl overflow-hidden border border-yellow-500/10">
+                        <Trophy className="w-16 h-16 text-yellow-500" />
+                      </div>
                     </div>
-                    <h3 className="text-2xl font-black tracking-tight text-yellow-500 uppercase">Team Join</h3>
-                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Auditorium Entry</p>
-                  </div>
-
-                  <div className="space-y-4">
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-black uppercase tracking-wider ml-1">Team Name</label>
-                      <input
-                        required
-                        className="w-full bg-background border border-border px-4 py-3 rounded-xl focus:border-yellow-500 outline-none transition-all font-bold"
-                        placeholder="Coolest Team Ever"
-                        value={regData.teamName}
-                        onChange={e => setRegData({ ...regData, teamName: e.target.value })}
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[10px] font-black uppercase tracking-wider ml-1">Member 1 (Lead)</label>
-                      <input
-                        required
-                        className="w-full bg-background border border-border px-4 py-3 rounded-xl focus:border-yellow-500 outline-none transition-all"
-                        placeholder="Your Name"
-                        value={regData.member1}
-                        onChange={e => setRegData({ ...regData, member1: e.target.value })}
-                      />
-                    </div>
-                    <div className="grid grid-cols-3 gap-2">
-                      <input className="bg-background border border-border px-3 py-2 rounded-lg text-xs" placeholder="Member 2" value={regData.member2} onChange={e => setRegData({ ...regData, member2: e.target.value })} />
-                      <input className="bg-background border border-border px-3 py-2 rounded-lg text-xs" placeholder="Member 3" value={regData.member3} onChange={e => setRegData({ ...regData, member3: e.target.value })} />
-                      <input className="bg-background border border-border px-3 py-2 rounded-lg text-xs" placeholder="Member 4" value={regData.member4} onChange={e => setRegData({ ...regData, member4: e.target.value })} />
+                    <div className="space-y-2">
+                      <h3 className="text-3xl font-black tracking-tight text-white uppercase italic">Welcome</h3>
+                      <p className="text-xl font-bold text-yellow-500 uppercase tracking-widest">{regData.teamName} 🎉</p>
                     </div>
                   </div>
+                ) : (
+                  <form onSubmit={handleRegister} className="bg-card/50 backdrop-blur-xl border border-border p-8 rounded-[2rem] space-y-6">
+                    <div className="text-center space-y-2">
+                      <div className="w-16 h-16 bg-white rounded-2xl mx-auto mb-2 flex items-center justify-center overflow-hidden border border-yellow-500/20 shadow-lg">
+                        <img src="/tqm_logo.jpg" alt="TQM Logo" className="w-full h-full object-contain" />
+                      </div>
+                      <h3 className="text-2xl font-black tracking-tight text-yellow-500 uppercase">Team Join</h3>
+                      <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Quiz Entry</p>
+                    </div>
 
-                  <button
-                    disabled={isRegistering}
-                    className="w-full py-4 bg-yellow-500 hover:bg-yellow-400 text-black font-black uppercase tracking-widest rounded-2xl transition-all active:scale-95 disabled:opacity-50"
-                  >
-                    {isRegistering ? 'Joining...' : 'Enter Auditorium'}
-                  </button>
-                </form>
+                    {quizStatus !== 'waiting' ? (
+                      <div className="bg-red-500/10 border border-red-500/20 p-6 rounded-2xl text-center space-y-2">
+                        <ShieldAlert className="w-8 h-8 text-red-500 mx-auto" />
+                        <h4 className="text-red-400 font-black uppercase tracking-tight">Access Locked</h4>
+                        <p className="text-xs text-red-500/80 font-medium">Quiz has already started. New teams cannot join.</p>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="space-y-5">
+                          <div className="space-y-1.5">
+                            <div className="flex justify-between items-center px-1">
+                              <label className="text-[10px] font-black uppercase tracking-wider">Team Name</label>
+                              <span className={cn("text-[9px] font-bold", regData.teamName.length > 25 ? "text-red-500" : "text-slate-500")}>
+                                {regData.teamName.length}/25
+                              </span>
+                            </div>
+                            <input
+                              required
+                              maxLength={30}
+                              className={cn(
+                                "w-full bg-background border px-4 py-3 rounded-xl focus:border-yellow-500 outline-none transition-all font-bold text-sm",
+                                nameTaken || regData.teamName.length > 25 ? "border-red-500/50" : "border-border"
+                              )}
+                              placeholder="Coolest Team Ever"
+                              value={regData.teamName}
+                              onChange={e => setRegData({ ...regData, teamName: e.target.value })}
+                            />
+                            {nameTaken && (
+                              <p className="text-[10px] text-red-400 font-bold mt-1 ml-1 flex items-center gap-1 animate-in fade-in slide-in-from-left-2">
+                                <ShieldAlert className="w-3 h-3" /> ⚠ Team name already taken
+                              </p>
+                            )}
+                          </div>
+                          <div className="space-y-1.5">
+                            <label className="text-[10px] font-black uppercase tracking-wider ml-1">Member 1 (Lead)</label>
+                            <input
+                              required
+                              className="w-full bg-background border border-border px-4 py-3 rounded-xl focus:border-yellow-500 outline-none transition-all text-sm"
+                              placeholder="Your Name"
+                              value={regData.member1}
+                              onChange={e => setRegData({ ...regData, member1: e.target.value })}
+                            />
+                          </div>
+
+                          <div className="space-y-1.5 pt-4">
+                            <label className="text-[10px] font-black uppercase tracking-wider ml-1 text-slate-500/60 flex items-center gap-2">
+                              <span className="h-px bg-border/50 flex-1" />
+                              Other Members (Optional)
+                              <span className="h-px bg-border/50 flex-1" />
+                            </label>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                              <input className="bg-background border border-border px-3 py-2 rounded-lg text-xs" placeholder="Member 2" value={regData.member2} onChange={e => setRegData({ ...regData, member2: e.target.value })} />
+                              <input className="bg-background border border-border px-3 py-2 rounded-lg text-xs" placeholder="Member 3" value={regData.member3} onChange={e => setRegData({ ...regData, member3: e.target.value })} />
+                              <input className="bg-background border border-border px-3 py-2 rounded-lg text-xs" placeholder="Member 4" value={regData.member4} onChange={e => setRegData({ ...regData, member4: e.target.value })} />
+                            </div>
+                          </div>
+                        </div>
+
+                        <button
+                          type="submit"
+                          disabled={isRegistering || nameTaken || !regData.teamName || !regData.member1 || regData.teamName.length > 25}
+                          className="w-full py-4 bg-yellow-500 hover:bg-yellow-400 text-black font-black uppercase tracking-wider rounded-2xl transition-all shadow-xl shadow-yellow-500/10 active:scale-[0.98] disabled:opacity-50 disabled:grayscale disabled:cursor-not-allowed group"
+                        >
+                          {isRegistering ? (
+                            <span className="flex items-center justify-center gap-2">
+                              <BrainCircuit className="w-5 h-5 animate-spin-slow" />
+                              Joining...
+                            </span>
+                          ) : "Join Quiz"}
+                        </button>
+                      </>
+                    )}
+                  </form>
+                )}
               </div>
             )}
 

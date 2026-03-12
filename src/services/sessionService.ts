@@ -394,5 +394,18 @@ export const sessionService = {
             .maybeSingle();
 
         return !!data && !error;
+    },
+
+    /**
+     * Check if a team name is already taken (for registration validation)
+     */
+    async isTeamNameTaken(name: string): Promise<boolean> {
+        if (!name.trim()) return false;
+        const { data } = await supabase
+            .from('teams')
+            .select('id')
+            .eq('team_name', name.trim())
+            .maybeSingle();
+        return !!data;
     }
 };
