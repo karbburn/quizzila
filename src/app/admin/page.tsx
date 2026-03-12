@@ -103,9 +103,14 @@ export default function AdminDashboard() {
             <div className="max-w-4xl mx-auto space-y-8">
                 {/* Header */}
                 <div className="flex justify-between items-center border-b border-border pb-6">
-                    <div>
-                        <h1 className="text-4xl font-black italic tracking-tighter text-yellow-500">QUIZZILA ADMIN</h1>
-                        <p className="text-slate-500 text-sm font-bold uppercase tracking-widest mt-1">Auditorium Command Center</p>
+                    <div className="flex items-center gap-4">
+                        <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center overflow-hidden border border-yellow-500/20 shadow-xl">
+                            <img src="/tqm_logo.jpg" alt="TQM Logo" className="w-full h-full object-contain" />
+                        </div>
+                        <div>
+                            <h1 className="text-4xl font-black italic tracking-tighter text-yellow-500">QUIZZILA ADMIN</h1>
+                            <p className="text-slate-500 text-sm font-bold uppercase tracking-widest mt-1">The Quiz Masters HQ</p>
+                        </div>
                     </div>
                     <div className="flex gap-4 items-center">
                         <button

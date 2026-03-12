@@ -105,8 +105,12 @@ export default function QuizzilaLive() {
                   <ToggleTheme />
                 </div>
                 <div className="space-y-4">
-                  <div className="inline-block p-4 bg-yellow-500/10 rounded-3xl mb-4 border border-yellow-500/20">
-                    <BrainCircuit className="w-12 h-12 text-yellow-500" />
+                  <div className="inline-block p-1 bg-white rounded-3xl mb-4 border border-yellow-500/20 overflow-hidden shadow-2xl">
+                    <img
+                      src="/tqm_logo.jpg"
+                      alt="TQM Logo"
+                      className="w-24 h-24 object-contain"
+                    />
                   </div>
                   <h2 className="text-8xl font-black tracking-tighter bg-gradient-to-b from-white to-slate-500 bg-clip-text text-transparent">
                     Quizzila
@@ -227,7 +231,9 @@ export default function QuizzilaLive() {
           <div className="fixed top-8 right-8 flex items-center gap-4 animate-in fade-in duration-500 z-50">
             <ToggleTheme />
             <div className="flex items-center gap-3 bg-card backdrop-blur-md border border-border p-3 rounded-2xl shadow-2xl">
-              <div className="w-10 h-10 bg-yellow-500 rounded-lg flex items-center justify-center text-black font-black text-xl italic">?</div>
+              <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center overflow-hidden border border-yellow-500/20 shadow-lg">
+                <img src="/tqm_logo.jpg" alt="TQM" className="w-full h-full object-contain" />
+              </div>
               <div>
                 <h1 className="text-sm font-black uppercase tracking-tighter">Quizzila</h1>
                 <p className="text-[8px] uppercase tracking-[0.2em] text-orange-400 font-bold">Auditorium Mode</p>
@@ -298,8 +304,8 @@ export default function QuizzilaLive() {
               <div className="bg-card backdrop-blur-xl border border-border p-12 rounded-[3.5rem] shadow-2xl text-center space-y-8 animate-in zoom-in duration-500">
                 <div className="relative inline-block">
                   <div className="absolute inset-0 bg-blue-500/20 blur-3xl rounded-full" />
-                  <div className="relative p-7 bg-gradient-to-b from-slate-100 to-slate-400 rounded-3xl shadow-2xl">
-                    <Trophy className="w-16 h-16 text-black" />
+                  <div className="relative p-7 bg-white rounded-3xl shadow-2xl overflow-hidden border border-yellow-500/20">
+                    <img src="/tqm_logo.jpg" alt="TQM Logo" className="w-24 h-24 object-contain" />
                   </div>
                 </div>
                 <div className="space-y-3">
