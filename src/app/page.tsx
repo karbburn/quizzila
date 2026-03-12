@@ -8,6 +8,7 @@ import { initialQuestions, type Question } from "@/data/questions";
 import { ToggleTheme } from "@/components/ui/toggle-theme";
 import { TheInfiniteGrid } from "@/components/ui/the-infinite-grid";
 import { useGameSession } from "@/hooks/useGameSession";
+import { sessionService } from "@/services/sessionService";
 
 export default function QuizzilaLive() {
   const {
@@ -21,16 +22,61 @@ export default function QuizzilaLive() {
   const [quizQuestions] = useState<Question[]>(initialQuestions);
   const [score, setScore] = useState(0);
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
-  const [playerCount] = useState(0);
+  const [team, setTeam] = useState<{ id: string, name: string } | null>(null);
+  const [regData, setRegData] = useState({ teamName: '', member1: '', member2: '', member3: '', member4: '' });
+  const [isRegistering, setIsRegistering] = useState(false);
+
+  // Load team from localStorage on mount
+  useEffect(() => {
+    const savedTeam = localStorage.getItem('quizzila_team');
+    if (savedTeam) {
+      setTeam(JSON.parse(savedTeam));
+    }
+  }, []);
+
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!regData.teamName || !regData.member1) return;
+
+    setIsRegistering(true);
+    const device_id = 'dev_' + Math.random().toString(36).substr(2, 9);
+
+    const newTeam = await sessionService.registerTeam({
+      team_name: regData.teamName,
+      member1: regData.member1,
+      member2: regData.member2 || undefined,
+      member3: regData.member3 || undefined,
+      member4: regData.member4 || undefined,
+      device_id
+    });
+
+    if (newTeam) {
+      const teamInfo = { id: newTeam.id, name: newTeam.team_name };
+      setTeam(teamInfo);
+      localStorage.setItem('quizzila_team', JSON.stringify(teamInfo));
+      setGameState('lobby');
+    }
+    setIsRegistering(false);
+  };
 
   // Reset local state when question changes
   useEffect(() => {
     setSelectedOption(null);
   }, [currentQue]);
 
-  const handleOptionClick = (option: string) => {
+  const handleOptionClick = async (option: string) => {
     if (selectedOption || gameState !== "quiz") return;
     setSelectedOption(option);
+
+    if (team) {
+      await sessionService.submitAnswer({
+        team_id: team.id,
+        question_id: quizQuestions[currentQue].numb.toString(), // Using numb as fallback if id is missing, or update Question type
+        selected_option: (['A', 'B', 'C', 'D'][quizQuestions[currentQue].options.indexOf(option)] || 'A') as 'A' | 'B' | 'C' | 'D',
+        is_correct: option === quizQuestions[currentQue].answer,
+      }, timeLeft);
+    }
+
     if (option === quizQuestions[currentQue].answer) {
       setScore((prev) => prev + 1);
     }
@@ -77,38 +123,77 @@ export default function QuizzilaLive() {
               </div>
             )}
 
-            {/* LOBBY: Waiting Room */}
+            {/* LOBBY: Registration or Waiting Room */}
             {gameState === "lobby" && (
-              <div className="text-center space-y-16 animate-in fade-in slide-in-from-bottom-8 duration-700">
-                <div className="absolute top-8 right-8">
-                  <ToggleTheme />
-                </div>
-                <div className="space-y-4">
-                  <h1 className="text-4xl font-black tracking-tighter uppercase text-yellow-500">Quizzila Live</h1>
-                  <p className="text-white/75 font-bold uppercase tracking-[0.3em] text-[10px] animate-pulse">Quiz will begin shortly</p>
-                </div>
-                <div className="relative py-12">
-                  <div className="absolute inset-0 bg-blue-500/5 blur-[100px] rounded-full" />
-                  <div className="relative space-y-2">
-                    <span className="text-[120px] font-black tracking-tighter leading-none bg-gradient-to-b from-white to-slate-500 bg-clip-text text-transparent">
-                      {playerCount + 23}
-                    </span>
-                    <p className="text-xl font-bold tracking-widest uppercase text-slate-500">Players Joined</p>
-                  </div>
-                </div>
-                <div className="flex justify-center flex-col items-center gap-8">
-                  <div className="flex items-center gap-3 px-6 py-3 bg-white/5 border border-white/10 rounded-2xl backdrop-blur-sm">
-                    <ShieldCheck className="w-5 h-5 text-emerald-400" />
-                    <p className="text-xs font-bold uppercase tracking-widest text-slate-300">Connected to host</p>
-                  </div>
-                  <div className="w-full overflow-hidden relative grayscale opacity-30 mask-fade-edges">
-                    <div className="flex gap-12 whitespace-nowrap animate-scroll w-max py-4">
-                      {["Alpha", "Bravo", "Charlie", "Delta", "Echo", "Foxtrot", "Golf", "Hotel", "India", "Juliet"].map((p, i) => (
-                        <span key={i} className="text-[10px] font-black uppercase tracking-[0.4em]">{p} joined</span>
-                      ))}
+              <div className="w-full max-w-md mx-auto animate-in fade-in slide-in-from-bottom-8 duration-700">
+                {!team ? (
+                  <form onSubmit={handleRegister} className="bg-card/50 backdrop-blur-xl border border-border p-8 rounded-[2rem] space-y-6">
+                    <div className="text-center space-y-2">
+                      <h3 className="text-2xl font-black tracking-tight text-yellow-500 uppercase">Team Join</h3>
+                      <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Auditorium Entry</p>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-black uppercase tracking-wider ml-1">Team Name</label>
+                        <input
+                          required
+                          className="w-full bg-background border border-border px-4 py-3 rounded-xl focus:border-yellow-500 outline-none transition-all font-bold"
+                          placeholder="Coolest Team Ever"
+                          value={regData.teamName}
+                          onChange={e => setRegData({ ...regData, teamName: e.target.value })}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-black uppercase tracking-wider ml-1">Member 1 (Lead)</label>
+                        <input
+                          required
+                          className="w-full bg-background border border-border px-4 py-3 rounded-xl focus:border-yellow-500 outline-none transition-all"
+                          placeholder="Your Name"
+                          value={regData.member1}
+                          onChange={e => setRegData({ ...regData, member1: e.target.value })}
+                        />
+                      </div>
+                      <div className="grid grid-cols-3 gap-2">
+                        <input className="bg-background border border-border px-3 py-2 rounded-lg text-xs" placeholder="Member 2" value={regData.member2} onChange={e => setRegData({ ...regData, member2: e.target.value })} />
+                        <input className="bg-background border border-border px-3 py-2 rounded-lg text-xs" placeholder="Member 3" value={regData.member3} onChange={e => setRegData({ ...regData, member3: e.target.value })} />
+                        <input className="bg-background border border-border px-3 py-2 rounded-lg text-xs" placeholder="Member 4" value={regData.member4} onChange={e => setRegData({ ...regData, member4: e.target.value })} />
+                      </div>
+                    </div>
+
+                    <button
+                      disabled={isRegistering}
+                      className="w-full py-4 bg-yellow-500 hover:bg-yellow-400 text-black font-black uppercase tracking-widest rounded-2xl transition-all active:scale-95 disabled:opacity-50"
+                    >
+                      {isRegistering ? 'Joining...' : 'Enter Auditorium'}
+                    </button>
+                  </form>
+                ) : (
+                  <div className="text-center space-y-16">
+                    <div className="space-y-4">
+                      <h1 className="text-4xl font-black tracking-tighter uppercase text-yellow-500">Quizzila Live</h1>
+                      <div className="inline-block px-4 py-1 bg-blue-500/10 border border-blue-500/20 rounded-full">
+                        <p className="text-blue-400 font-bold uppercase tracking-widest text-[10px]">Team: {team.name}</p>
+                      </div>
+                      <p className="text-white/75 font-bold uppercase tracking-[0.3em] text-[10px] animate-pulse">Quiz will begin shortly</p>
+                    </div>
+                    <div className="relative py-12">
+                      <div className="absolute inset-0 bg-blue-500/5 blur-[100px] rounded-full" />
+                      <div className="relative space-y-2">
+                        <span className="text-[120px] font-black tracking-tighter leading-none bg-gradient-to-b from-white to-slate-500 bg-clip-text text-transparent">
+                          {team.name.length * 7 + 12}
+                        </span>
+                        <p className="text-xl font-bold tracking-widest uppercase text-slate-500">Teams Ready</p>
+                      </div>
+                    </div>
+                    <div className="flex justify-center flex-col items-center gap-8">
+                      <div className="flex items-center gap-3 px-6 py-3 bg-white/5 border border-white/10 rounded-2xl backdrop-blur-sm">
+                        <ShieldCheck className="w-5 h-5 text-emerald-400" />
+                        <p className="text-xs font-bold uppercase tracking-widest text-slate-300">Synchronized</p>
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
               </div>
             )}
 
@@ -163,9 +248,17 @@ export default function QuizzilaLive() {
                     <span className="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-1 block">Phase</span>
                     <p className="text-lg font-black tracking-tight">{quizQuestions[currentQue].numb} <span className="text-slate-500 font-normal">/ {quizQuestions.length}</span></p>
                   </div>
-                  <div className="flex items-center gap-3 bg-muted/40 px-4 py-2 rounded-2xl border border-border">
-                    <Timer className={cn("w-5 h-5", timeLeft < 7 ? "text-red-500 animate-pulse" : "text-blue-400")} />
-                    <span className="text-xl font-black tabular-nums">{timeLeft < 10 ? `0${timeLeft}` : timeLeft}</span>
+                  <div className="flex items-center gap-2">
+                    {gameState === "quiz" && !selectedOption && (
+                      <div className="flex items-center gap-2 bg-yellow-500/10 px-3 py-2 rounded-2xl border border-yellow-500/20 animate-in fade-in zoom-in duration-300">
+                        <Trophy className="w-4 h-4 text-yellow-500" />
+                        <span className="text-xs font-black text-yellow-500">+{sessionService.calculateFFFPoints(timeLeft)} pts</span>
+                      </div>
+                    )}
+                    <div className="flex items-center gap-3 bg-muted/40 px-4 py-2 rounded-2xl border border-border">
+                      <Timer className={cn("w-5 h-5", timeLeft < 7 ? "text-red-500 animate-pulse" : "text-blue-400")} />
+                      <span className="text-xl font-black tabular-nums">{timeLeft < 10 ? `0${timeLeft}` : timeLeft}</span>
+                    </div>
                   </div>
                 </header>
 

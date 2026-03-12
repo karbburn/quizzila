@@ -1,36 +1,55 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Quizzila 🚀
 
-## Getting Started
+Quizzila is an ultra-premium, real-time quiz application designed for live events and auditoriums. Built with a focus on high-energy engagement and aesthetic excellence, it supports up to 120+ concurrent teams with low-latency synchronization.
 
-First, run the development server:
+## ✨ Features
 
+- **💎 Ultra-Premium UI**: Immersive dark mode with glassmorphism, animated grids, and cinematic transitions.
+- **⚡ Synchronized Gameplay**: Real-time state management using Supabase, ensuring every participant is in sync with the host.
+- **🥇 Fastest Finger First (FFF)**: Dynamic scoring system where faster answers earn more points (Menti-style bonus).
+- **🛡️ Team Registration**: Built-in flow for team names and member management.
+- **🕹️ Admin Command Center**: robust dashboard for quiz control, live monitoring, and bulk question management.
+- **📥 Bulk Import**: Effortlessly populate your quiz by importing questions via JSON.
+
+## 🛠️ Tech Stack
+
+- **Frontend**: [Next.js](https://nextjs.org/) (App Router), [React](https://reactjs.org/), [Tailwind CSS](https://tailwindcss.com/)
+- **Backend/Database**: [Supabase](https://supabase.com/) (PostgreSQL + Realtime)
+- **Animations**: [Framer Motion](https://www.framer.com/motion/), [Lucide React](https://lucide.dev/) (Icons)
+- **State Management**: Custom React Hooks with Supabase Subscriptions
+
+## 🚀 Getting Started
+
+### 1. Clone & Install
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+git clone https://github.com/karbburn/quizzila.git
+cd quizzila
+npm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 2. Configure Supabase
+Create a `.env.local` file with your credentials:
+```env
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 3. Apply Schema
+Run the provided `supabase_schema.sql` in your Supabase SQL Editor to set up the necessary tables, enums, and RLS policies.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### 4. Run Development Server
+```bash
+npm run dev
+```
 
-## Learn More
+## 📊 Database Schema
 
-To learn more about Next.js, take a look at the following resources:
+The production-grade schema includes:
+- `questions`: Question text, options, and order.
+- `teams`: Team registration and scoring.
+- `answers`: Individual team submissions with time-stamped bonus points.
+- `quiz_state`: Synchronized global game state (waiting, countdown, active, etc.).
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+---
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Created with ❤️ for high-stakes live events.

@@ -89,30 +89,45 @@ export const sessionService = {
     },
 
     /**
-     * Submit an answer
+     * Calculate points based on speed (FFF - Fastest Finger First)
+     * Max points at 30s remaining is 2x basePoints
+     * Min points at 0s remaining is 1x basePoints
      */
-    async submitAnswer(answerData: Omit<Answer, 'id' | 'answered_at'>) {
-        const { error } = await supabase
-            .from('answers')
-            .insert([answerData]);
-
-        if (error) {
-            console.error('Error submitting answer:', error.message);
-            throw error;
-        }
+    calculateFFFPoints(timeLeft: number, basePoints: number = 100): number {
+        const bonus = Math.floor((Math.max(0, timeLeft) / 30) * basePoints);
+        return basePoints + bonus;
     },
 
     /**
-     * Transition to Countdown
+     * Submit an answer with FFF points calculation
      */
-    async startCountdown(durationSeconds: number = 6) {
-        const timerEnd = new Date();
-        timerEnd.setSeconds(timerEnd.getSeconds() + durationSeconds);
+    async submitAnswer(answerData: Omit<Answer, 'id' | 'answered_at' | 'points_awarded'>, timeLeft: number) {
+        const points = answerData.is_correct ? this.calculateFFFPoints(timeLeft) : 0;
 
-        return this.updateQuizState({
-            status: 'countdown',
-            timer_end: timerEnd.toISOString()
-        });
+        const { error: answerError } = await supabase
+            .from('answers')
+            .insert([{ ...answerData, points_awarded: points }]);
+
+        if (answerError) {
+            console.error('Error submitting answer:', answerError.message);
+            throw answerError;
+        }
+
+        // If correct, update the team's total score
+        if (points > 0) {
+            const { error: teamError } = await supabase.rpc('increment_team_score', {
+                t_id: answerData.team_id,
+                points_to_add: points
+            });
+
+            if (teamError) {
+                // Fallback if RPC isn't defined yet: fetch and update
+                const { data: team } = await supabase.from('teams').select('score').eq('id', answerData.team_id).single();
+                if (team) {
+                    await supabase.from('teams').update({ score: team.score + points }).eq('id', answerData.team_id);
+                }
+            }
+        }
     },
 
     /**
@@ -125,6 +140,19 @@ export const sessionService = {
         return this.updateQuizState({
             status: 'question_active',
             current_question: index,
+            timer_end: timerEnd.toISOString()
+        });
+    },
+
+    /**
+     * Transition to Countdown
+     */
+    async startCountdown(durationSeconds: number = 6) {
+        const timerEnd = new Date();
+        timerEnd.setSeconds(timerEnd.getSeconds() + durationSeconds);
+
+        return this.updateQuizState({
+            status: 'countdown',
             timer_end: timerEnd.toISOString()
         });
     },
@@ -151,19 +179,40 @@ export const sessionService = {
      * Reset the quiz for the admin
      */
     async resetQuiz() {
-        // Clear dynamic data (not using uuid gte trick, just delete all)
-        // Note: Supabase RLS allows the deletions we configured
         const { error: answersError } = await supabase.from('answers').delete().neq('id', '00000000-0000-0000-0000-000000000000');
         const { error: teamsError } = await supabase.from('teams').delete().neq('id', '00000000-0000-0000-0000-000000000000');
 
         if (answersError) console.error('Error clearing answers:', answersError.message);
         if (teamsError) console.error('Error clearing teams:', teamsError.message);
 
-        // Reset state
         return this.updateQuizState({
             status: 'waiting',
             current_question: 0,
             timer_end: null
         });
+    },
+
+    /**
+     * Bulk Question Import for Admin
+     */
+    async bulkImportQuestions(questions: any[]) {
+        // Clear existing questions
+        await supabase.from('questions').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+
+        const mappedQuestions = questions.map(q => ({
+            order_index: q.numb,
+            text: q.question,
+            correct_option: q.answer,
+            options: q.options
+        }));
+
+        const { error } = await supabase
+            .from('questions')
+            .insert(mappedQuestions);
+
+        if (error) {
+            console.error('Error bulk importing questions:', error.message);
+            throw error;
+        }
     }
 };

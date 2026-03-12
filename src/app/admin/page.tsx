@@ -7,15 +7,33 @@ import { Play, SkipForward, RotateCcw, Users, Activity, ShieldAlert, Trophy } fr
 import { cn } from "@/lib/utils";
 import { ToggleTheme } from "@/components/ui/toggle-theme";
 import { sessionService } from "@/services/sessionService";
+import { Upload, FileJson, CheckCircle2, AlertCircle, Timer } from "lucide-react";
+import { supabase } from "@/lib/supabase";
+import { type Question } from "@/data/questions";
 
 export default function AdminDashboard() {
     const [quizState, setQuizState] = useState<QuizState | null>(null);
+    const [questions, setQuestions] = useState<Question[]>([]);
     const [loading, setLoading] = useState(true);
+    const [importText, setImportText] = useState("");
+    const [importStatus, setImportStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
+    const [showImport, setShowImport] = useState(false);
 
     useEffect(() => {
         const fetchState = async () => {
-            const data = await sessionService.getQuizState();
-            if (data) setQuizState(data);
+            const state = await sessionService.getQuizState();
+            if (state) setQuizState(state);
+
+            const { data: qData } = await supabase.from('questions').select('*').order('order_index', { ascending: true });
+            if (qData) {
+                setQuestions(qData.map(q => ({
+                    id: q.id,
+                    numb: q.order_index,
+                    question: q.text,
+                    answer: q.correct_option,
+                    options: q.options
+                })));
+            }
             setLoading(false);
         };
 
@@ -47,7 +65,7 @@ export default function AdminDashboard() {
     const handleNextQuestion = () => {
         if (!quizState) return;
         const nextIdx = quizState.current_question + 1;
-        if (nextIdx < initialQuestions.length) {
+        if (nextIdx < questions.length) {
             sessionService.startQuestion(nextIdx);
         } else {
             sessionService.endQuiz();
@@ -64,6 +82,20 @@ export default function AdminDashboard() {
         }
     };
 
+    const handleBulkImport = async () => {
+        try {
+            const questions = JSON.parse(importText);
+            if (!Array.isArray(questions)) throw new Error("Input must be a JSON array");
+
+            await sessionService.bulkImportQuestions(questions);
+            setImportStatus({ type: 'success', message: `Successfully imported ${questions.length} questions!` });
+            setImportText("");
+            setTimeout(() => setShowImport(false), 2000);
+        } catch (err: any) {
+            setImportStatus({ type: 'error', message: err.message || "Invalid JSON format" });
+        }
+    };
+
     if (loading) return null;
 
     return (
@@ -76,6 +108,13 @@ export default function AdminDashboard() {
                         <p className="text-slate-500 text-sm font-bold uppercase tracking-widest mt-1">Auditorium Command Center</p>
                     </div>
                     <div className="flex gap-4 items-center">
+                        <button
+                            onClick={() => setShowImport(!showImport)}
+                            className="p-3 bg-muted/20 border border-border rounded-xl hover:bg-muted/30 transition-all"
+                            title="Bulk Import Questions"
+                        >
+                            <Upload className="w-5 h-5 text-blue-400" />
+                        </button>
                         <ToggleTheme />
                         <div className="bg-muted/30 border border-border px-4 py-2 rounded-xl flex items-center gap-2">
                             <Users className="w-4 h-4 text-blue-400" />
@@ -87,6 +126,43 @@ export default function AdminDashboard() {
                         </div>
                     </div>
                 </div>
+
+                {/* Bulk Import Section */}
+                {showImport && (
+                    <div className="bg-card p-6 rounded-3xl border border-blue-500/30 shadow-2xl animate-in slide-in-from-top-4 duration-300 space-y-4">
+                        <div className="flex justify-between items-center">
+                            <h3 className="text-xl font-bold flex items-center gap-2">
+                                <FileJson className="w-5 h-5 text-blue-400" />
+                                Bulk Question Import
+                            </h3>
+                            <button onClick={() => setShowImport(false)} className="text-slate-500 hover:text-white">✕</button>
+                        </div>
+                        <p className="text-xs text-slate-500 font-medium">Paste a JSON array of questions with keys: <code className="text-blue-400">numb, question, answer, options[]</code></p>
+                        <textarea
+                            value={importText}
+                            onChange={(e) => setImportText(e.target.value)}
+                            placeholder='[{"numb": 1, "question": "...", "answer": "...", "options": ["...", "..."]}]'
+                            className="w-full h-48 bg-background border border-border p-4 rounded-2xl font-mono text-sm focus:border-blue-500 outline-none transition-all"
+                        />
+                        <div className="flex items-center justify-between">
+                            {importStatus && (
+                                <div className={cn(
+                                    "flex items-center gap-2 text-sm font-bold",
+                                    importStatus.type === 'success' ? "text-emerald-400" : "text-red-400"
+                                )}>
+                                    {importStatus.type === 'success' ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+                                    {importStatus.message}
+                                </div>
+                            )}
+                            <button
+                                onClick={handleBulkImport}
+                                className="ml-auto px-6 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl transition-all active:scale-95"
+                            >
+                                Import Questions
+                            </button>
+                        </div>
+                    </div>
+                )}
 
                 {/* Current State Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -106,7 +182,7 @@ export default function AdminDashboard() {
                         <p className="text-[10px] uppercase font-black text-slate-500 tracking-widest">Question PROGRESS</p>
                         <p className="text-4xl font-black">
                             {quizState?.current_question !== undefined ? quizState.current_question + 1 : 0}
-                            <span className="text-lg text-slate-600 font-normal"> / {initialQuestions.length}</span>
+                            <span className="text-lg text-slate-600 font-normal"> / {questions.length}</span>
                         </p>
                     </div>
                     <div className="bg-card p-6 rounded-3xl border border-border space-y-2">
@@ -182,12 +258,20 @@ export default function AdminDashboard() {
                 </div>
 
                 {/* Question Preview */}
-                <div className="bg-muted/10 p-8 rounded-3xl border border-border opacity-60 pointer-events-none">
-                    <p className="text-[10px] uppercase font-black text-slate-500 mb-4 tracking-widest">Live Content Preview</p>
-                    {quizState && initialQuestions[quizState.current_question] ? (
+                <div className="bg-muted/10 p-8 rounded-3xl border border-border">
+                    <div className="flex justify-between items-center mb-4">
+                        <p className="text-[10px] uppercase font-black text-slate-500 tracking-widest">Live Content Preview</p>
+                        {quizState?.status === 'question_active' && (
+                            <div className="flex items-center gap-2 px-3 py-1 bg-yellow-500/10 border border-yellow-500/20 rounded-full">
+                                <Timer className="w-3 h-3 text-yellow-500" />
+                                <span className="text-[10px] font-bold text-yellow-500 uppercase tracking-wider">FFF Multiplier Active</span>
+                            </div>
+                        )}
+                    </div>
+                    {quizState && questions[quizState.current_question] ? (
                         <div className="space-y-2">
-                            <p className="text-lg font-bold">{initialQuestions[quizState.current_question].question}</p>
-                            <p className="text-emerald-400 font-mono text-xs">Correct Answer: {initialQuestions[quizState.current_question].answer}</p>
+                            <p className="text-lg font-bold">{questions[quizState.current_question].question}</p>
+                            <p className="text-emerald-400 font-mono text-xs">Correct Answer: {questions[quizState.current_question].answer}</p>
                         </div>
                     ) : (
                         <p className="italic text-slate-500">Waiting for active phase...</p>

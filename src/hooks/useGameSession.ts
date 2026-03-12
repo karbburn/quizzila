@@ -16,7 +16,9 @@ export function useGameSession() {
 
         // Map database status to client state
         if (state.status === 'waiting') {
-            setGameState('lobby');
+            // Only move to lobby if we are not on the entry page OR if we already have a team
+            const hasTeam = typeof window !== 'undefined' && localStorage.getItem('quizzila_team');
+            setGameState(prev => (prev === 'entry' && !hasTeam) ? 'entry' : 'lobby');
         } else if (state.status === 'countdown') {
             setGameState('countdown');
             if (state.timer_end) {
