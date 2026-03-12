@@ -9,7 +9,7 @@ import { supabase } from "@/lib/supabase";
 import { type GameSession } from "@/data/session";
 
 export default function QuizzilaLive() {
-  const [gameState, setGameState] = useState<"lobby" | "quiz" | "leaderboard" | "finished">("lobby");
+  const [gameState, setGameState] = useState<"entry" | "lobby" | "quiz" | "leaderboard" | "finished">("entry");
   const [quizQuestions, setQuizQuestions] = useState<Question[]>(initialQuestions);
   const [currentQue, setCurrentQue] = useState(0);
   const [score, setScore] = useState(0);
@@ -140,6 +140,29 @@ export default function QuizzilaLive() {
             <p className="text-[8px] uppercase tracking-[0.2em] text-orange-400 font-bold">Auditorium Mode</p>
           </div>
         </div>
+
+        {/* ENTRY: Landing Page */}
+        {gameState === "entry" && (
+          <div className="text-center space-y-10 animate-in fade-in zoom-in duration-700">
+            <div className="space-y-4">
+              <div className="inline-block p-4 bg-yellow-500/10 rounded-3xl mb-4 border border-yellow-500/20">
+                <BrainCircuit className="w-12 h-12 text-yellow-500" />
+              </div>
+              <h2 className="text-8xl font-black tracking-tighter bg-gradient-to-b from-white to-slate-500 bg-clip-text text-transparent">
+                Quizzila
+              </h2>
+              <p className="text-slate-500 font-medium tracking-wide uppercase text-xs">The Ultimate TQM Assessment Platform</p>
+            </div>
+
+            <div className="flex justify-center pt-8">
+              <InteractiveHoverButton
+                text="Start Quiz"
+                onClick={() => setGameState("lobby")}
+                className="w-56 h-14 text-xl"
+              />
+            </div>
+          </div>
+        )}
 
         {/* LOBBY: Waiting for Admin */}
         {gameState === "lobby" && (
