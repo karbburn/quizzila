@@ -199,12 +199,29 @@ export const sessionService = {
         // Clear existing questions
         await supabase.from('questions').delete().neq('id', '00000000-0000-0000-0000-000000000000');
 
-        const mappedQuestions = questions.map(q => ({
-            order_index: q.numb,
-            text: q.question,
-            correct_option: String(q.answer).trim().toUpperCase().charAt(0),
-            options: q.options
-        }));
+        const mappedQuestions = questions.map(q => {
+            let ans = String(q.answer || '').trim().toUpperCase();
+            let finalAns = 'A';
+
+            if (/^[A-D]$/.test(ans)) {
+                finalAns = ans;
+            } else if (/^[1-4]$/.test(ans)) {
+                finalAns = String.fromCharCode(64 + parseInt(ans));
+            } else if (Array.isArray(q.options)) {
+                // Try to find if the answer text matches any option text
+                const idx = q.options.findIndex((opt: string) =>
+                    String(opt).toLowerCase().includes(ans.toLowerCase())
+                );
+                if (idx >= 0 && idx < 4) finalAns = String.fromCharCode(65 + idx);
+            }
+
+            return {
+                order_index: q.numb,
+                text: q.question,
+                correct_option: finalAns,
+                options: q.options
+            };
+        });
 
         const { error } = await supabase
             .from('questions')
