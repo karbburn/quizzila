@@ -157,16 +157,11 @@ export default function QuizzilaLive() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4 max-w-sm mx-auto">
+            <div className="grid grid-cols-1 gap-4 max-w-[200px] mx-auto">
               <div className="p-6 bg-white/5 rounded-3xl border border-white/5 backdrop-blur-sm">
                 <Users className="w-6 h-6 text-slate-500 mx-auto mb-2" />
                 <p className="text-2xl font-black">{playerCount}+</p>
                 <p className="text-[10px] uppercase text-slate-500 font-bold">Players Ready</p>
-              </div>
-              <div className="p-6 bg-white/5 rounded-3xl border border-white/5 backdrop-blur-sm">
-                <ShieldCheck className="w-6 h-6 text-slate-500 mx-auto mb-2" />
-                <p className="text-2xl font-black">ACTIVE</p>
-                <p className="text-[10px] uppercase text-slate-500 font-bold">Secure Session</p>
               </div>
             </div>
           </div>
