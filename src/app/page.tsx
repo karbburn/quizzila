@@ -120,91 +120,94 @@ export default function QuizzilaLive() {
                 <div className="flex justify-center pt-8">
                   <InteractiveHoverButton
                     text="Start Quiz"
-                    onClick={() => setGameState("lobby")}
+                    onClick={() => setGameState(team ? "lobby" : "register" as any)}
                     className="w-56 h-14 text-xl"
                   />
                 </div>
               </div>
             )}
 
-            {/* LOBBY: Registration or Waiting Room */}
+            {/* REGISTER: Team Registration */}
+            {(gameState as string) === "register" && (
+              <div className="w-full max-w-md mx-auto animate-in fade-in slide-in-from-bottom-8 duration-700">
+                <form onSubmit={handleRegister} className="bg-card/50 backdrop-blur-xl border border-border p-8 rounded-[2rem] space-y-6">
+                  <div className="text-center space-y-2">
+                    <div className="w-16 h-16 bg-white rounded-2xl mx-auto mb-2 flex items-center justify-center overflow-hidden border border-yellow-500/20 shadow-lg">
+                      <img src="/tqm_logo.jpg" alt="TQM Logo" className="w-full h-full object-contain" />
+                    </div>
+                    <h3 className="text-2xl font-black tracking-tight text-yellow-500 uppercase">Team Join</h3>
+                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Auditorium Entry</p>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black uppercase tracking-wider ml-1">Team Name</label>
+                      <input
+                        required
+                        className="w-full bg-background border border-border px-4 py-3 rounded-xl focus:border-yellow-500 outline-none transition-all font-bold"
+                        placeholder="Coolest Team Ever"
+                        value={regData.teamName}
+                        onChange={e => setRegData({ ...regData, teamName: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-black uppercase tracking-wider ml-1">Member 1 (Lead)</label>
+                      <input
+                        required
+                        className="w-full bg-background border border-border px-4 py-3 rounded-xl focus:border-yellow-500 outline-none transition-all"
+                        placeholder="Your Name"
+                        value={regData.member1}
+                        onChange={e => setRegData({ ...regData, member1: e.target.value })}
+                      />
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      <input className="bg-background border border-border px-3 py-2 rounded-lg text-xs" placeholder="Member 2" value={regData.member2} onChange={e => setRegData({ ...regData, member2: e.target.value })} />
+                      <input className="bg-background border border-border px-3 py-2 rounded-lg text-xs" placeholder="Member 3" value={regData.member3} onChange={e => setRegData({ ...regData, member3: e.target.value })} />
+                      <input className="bg-background border border-border px-3 py-2 rounded-lg text-xs" placeholder="Member 4" value={regData.member4} onChange={e => setRegData({ ...regData, member4: e.target.value })} />
+                    </div>
+                  </div>
+
+                  <button
+                    disabled={isRegistering}
+                    className="w-full py-4 bg-yellow-500 hover:bg-yellow-400 text-black font-black uppercase tracking-widest rounded-2xl transition-all active:scale-95 disabled:opacity-50"
+                  >
+                    {isRegistering ? 'Joining...' : 'Enter Auditorium'}
+                  </button>
+                </form>
+              </div>
+            )}
+
+            {/* LOBBY: Waiting Room */}
             {gameState === "lobby" && (
               <div className="w-full max-w-md mx-auto animate-in fade-in slide-in-from-bottom-8 duration-700">
-                {!team ? (
-                  <form onSubmit={handleRegister} className="bg-card/50 backdrop-blur-xl border border-border p-8 rounded-[2rem] space-y-6">
-                    <div className="text-center space-y-2">
-                      <div className="w-16 h-16 bg-white rounded-2xl mx-auto mb-2 flex items-center justify-center overflow-hidden border border-yellow-500/20 shadow-lg">
-                        <img src="/tqm_logo.jpg" alt="TQM Logo" className="w-full h-full object-contain" />
-                      </div>
-                      <h3 className="text-2xl font-black tracking-tight text-yellow-500 uppercase">Team Join</h3>
-                      <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Auditorium Entry</p>
+                <div className="text-center space-y-16">
+                  <div className="flex flex-col items-center gap-4 mb-2">
+                    <div className="w-20 h-20 bg-white rounded-2xl flex items-center justify-center overflow-hidden border border-yellow-500/20 shadow-xl">
+                      <img src="/tqm_logo.jpg" alt="TQM Logo" className="w-full h-full object-contain" />
                     </div>
-
-                    <div className="space-y-4">
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-black uppercase tracking-wider ml-1">Team Name</label>
-                        <input
-                          required
-                          className="w-full bg-background border border-border px-4 py-3 rounded-xl focus:border-yellow-500 outline-none transition-all font-bold"
-                          placeholder="Coolest Team Ever"
-                          value={regData.teamName}
-                          onChange={e => setRegData({ ...regData, teamName: e.target.value })}
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-black uppercase tracking-wider ml-1">Member 1 (Lead)</label>
-                        <input
-                          required
-                          className="w-full bg-background border border-border px-4 py-3 rounded-xl focus:border-yellow-500 outline-none transition-all"
-                          placeholder="Your Name"
-                          value={regData.member1}
-                          onChange={e => setRegData({ ...regData, member1: e.target.value })}
-                        />
-                      </div>
-                      <div className="grid grid-cols-3 gap-2">
-                        <input className="bg-background border border-border px-3 py-2 rounded-lg text-xs" placeholder="Member 2" value={regData.member2} onChange={e => setRegData({ ...regData, member2: e.target.value })} />
-                        <input className="bg-background border border-border px-3 py-2 rounded-lg text-xs" placeholder="Member 3" value={regData.member3} onChange={e => setRegData({ ...regData, member3: e.target.value })} />
-                        <input className="bg-background border border-border px-3 py-2 rounded-lg text-xs" placeholder="Member 4" value={regData.member4} onChange={e => setRegData({ ...regData, member4: e.target.value })} />
-                      </div>
-                    </div>
-
-                    <button
-                      disabled={isRegistering}
-                      className="w-full py-4 bg-yellow-500 hover:bg-yellow-400 text-black font-black uppercase tracking-widest rounded-2xl transition-all active:scale-95 disabled:opacity-50"
-                    >
-                      {isRegistering ? 'Joining...' : 'Enter Auditorium'}
-                    </button>
-                  </form>
-                ) : (
-                  <div className="text-center space-y-16">
-                    <div className="flex flex-col items-center gap-4 mb-2">
-                      <div className="w-20 h-20 bg-white rounded-2xl flex items-center justify-center overflow-hidden border border-yellow-500/20 shadow-xl">
-                        <img src="/tqm_logo.jpg" alt="TQM Logo" className="w-full h-full object-contain" />
-                      </div>
-                      <div className="text-center space-y-1">
-                        <h1 className="text-3xl font-black tracking-tighter uppercase text-yellow-500 leading-none">Quizzila Live</h1>
-                        <div className="inline-block px-3 py-1 bg-blue-500/10 border border-blue-500/20 rounded-full">
-                          <p className="text-blue-400 font-bold uppercase tracking-widest text-[8px]">Team: {team.name}</p>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="relative py-12">
-                      <div className="absolute inset-0 bg-blue-500/5 blur-[100px] rounded-full" />
-                      <div className="relative space-y-2">
-                        <span className="text-[120px] font-black tracking-tighter leading-none bg-gradient-to-b from-white to-slate-500 bg-clip-text text-transparent">
-                          {team.name.length * 7 + 12}
-                        </span>
-                        <p className="text-xl font-bold tracking-widest uppercase text-slate-500">Teams Ready</p>
-                      </div>
-                    </div>
-                    <div className="flex justify-center flex-col items-center gap-8">
-                      <div className="flex items-center gap-3 px-6 py-3 bg-white/5 border border-white/10 rounded-2xl backdrop-blur-sm">
-                        <ShieldCheck className="w-5 h-5 text-emerald-400" />
-                        <p className="text-xs font-bold uppercase tracking-widest text-slate-300">Synchronized</p>
+                    <div className="text-center space-y-1">
+                      <h1 className="text-3xl font-black tracking-tighter uppercase text-yellow-500 leading-none">Starting Soon</h1>
+                      <div className="inline-block px-3 py-1 bg-blue-500/10 border border-blue-500/20 rounded-full">
+                        <p className="text-blue-400 font-bold uppercase tracking-widest text-[8px]">Team: {team.name}</p>
                       </div>
                     </div>
                   </div>
-                )}
+                  <div className="relative py-12">
+                    <div className="absolute inset-0 bg-blue-500/5 blur-[100px] rounded-full" />
+                    <div className="relative space-y-2">
+                      <span className="text-[120px] font-black tracking-tighter leading-none bg-gradient-to-b from-white to-slate-500 bg-clip-text text-transparent">
+                        {team.name.length * 7 + 12}
+                      </span>
+                      <p className="text-xl font-bold tracking-widest uppercase text-slate-500">Teams Ready</p>
+                    </div>
+                  </div>
+                  <div className="flex justify-center flex-col items-center gap-8">
+                    <div className="flex items-center gap-3 px-6 py-3 bg-white/5 border border-white/10 rounded-2xl backdrop-blur-sm">
+                      <ShieldCheck className="w-5 h-5 text-emerald-400" />
+                      <p className="text-xs font-bold uppercase tracking-widest text-slate-300">Synchronized</p>
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
 

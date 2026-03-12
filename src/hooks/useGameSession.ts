@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { sessionService } from "@/services/sessionService";
 import { type QuizState, type QuizStatus } from "@/data/session";
 
-export type ClientGameState = "entry" | "lobby" | "countdown" | "quiz" | "leaderboard" | "finished";
+export type ClientGameState = "entry" | "register" | "lobby" | "countdown" | "quiz" | "leaderboard" | "finished";
 
 export function useGameSession() {
     const [gameState, setGameState] = useState<ClientGameState>("entry");
@@ -16,10 +16,9 @@ export function useGameSession() {
 
         // Map database status to client state
         if (state.status === 'waiting') {
-            // NEVER auto-transition from entry. The user must click "Start Quiz".
+            // NEVER auto-transition from entry or register.
             setGameState(prev => {
-                if (prev === 'entry') return 'entry';
-                // If we are already in lobby/quiz, we stay there or sync to lobby
+                if (prev === 'entry' || prev === 'register') return prev;
                 return 'lobby';
             });
         } else if (state.status === 'countdown') {

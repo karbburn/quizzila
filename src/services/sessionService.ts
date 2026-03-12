@@ -214,5 +214,172 @@ export const sessionService = {
             console.error('Error bulk importing questions:', error.message);
             throw error;
         }
+    },
+
+    // ── Timer Controls ─────────────────────────────────────────────
+
+    /**
+     * Extend the current timer by N seconds
+     */
+    async extendTimer(seconds: number) {
+        const state = await this.getQuizState();
+        if (!state?.timer_end) return;
+        const current = new Date(state.timer_end);
+        current.setSeconds(current.getSeconds() + seconds);
+        return this.updateQuizState({ timer_end: current.toISOString() });
+    },
+
+    /**
+     * Pause the timer by storing the remaining time in a way the frontend
+     * interprets as "paused" (timer_end far in the future).
+     * Returns remaining seconds so we can resume later.
+     */
+    async pauseTimer(): Promise<number> {
+        const state = await this.getQuizState();
+        if (!state?.timer_end) return 0;
+        const remaining = Math.max(0, Math.floor((new Date(state.timer_end).getTime() - Date.now()) / 1000));
+        // Set timer_end to null to signal "paused" to frontend
+        await this.updateQuizState({ timer_end: null });
+        return remaining;
+    },
+
+    /**
+     * Resume the timer with a given number of remaining seconds
+     */
+    async resumeTimer(remainingSeconds: number) {
+        const timerEnd = new Date();
+        timerEnd.setSeconds(timerEnd.getSeconds() + remainingSeconds);
+        return this.updateQuizState({ timer_end: timerEnd.toISOString() });
+    },
+
+    // ── Live Answer Stats ──────────────────────────────────────────
+
+    /**
+     * Get answer counts (A/B/C/D) for a specific question
+     */
+    async getAnswerStats(questionId: string): Promise<{ A: number; B: number; C: number; D: number; total: number }> {
+        const { data, error } = await supabase
+            .from('answers')
+            .select('selected_option')
+            .eq('question_id', questionId);
+
+        if (error || !data) return { A: 0, B: 0, C: 0, D: 0, total: 0 };
+
+        const stats = { A: 0, B: 0, C: 0, D: 0, total: data.length };
+        data.forEach((row: any) => {
+            const opt = row.selected_option as 'A' | 'B' | 'C' | 'D';
+            if (stats.hasOwnProperty(opt)) stats[opt]++;
+        });
+        return stats;
+    },
+
+    /**
+     * Subscribe to live answer submissions
+     */
+    subscribeToAnswers(onInsert: (answer: Answer) => void) {
+        return supabase
+            .channel('answers-channel')
+            .on(
+                'postgres_changes',
+                { event: 'INSERT', schema: 'public', table: 'answers' },
+                (payload) => {
+                    onInsert(payload.new as Answer);
+                }
+            )
+            .subscribe();
+    },
+
+    /**
+     * Subscribe to team joins
+     */
+    subscribeToTeams(onInsert: (team: Team) => void) {
+        return supabase
+            .channel('teams-channel')
+            .on(
+                'postgres_changes',
+                { event: 'INSERT', schema: 'public', table: 'teams' },
+                (payload) => {
+                    onInsert(payload.new as Team);
+                }
+            )
+            .subscribe();
+    },
+
+    // ── Leaderboard ────────────────────────────────────────────────
+
+    /**
+     * Get leaderboard (top N teams by score)
+     */
+    async getLeaderboard(limit: number = 10): Promise<{ team_name: string; score: number; rank: number }[]> {
+        const { data, error } = await supabase
+            .from('teams')
+            .select('team_name, score')
+            .order('score', { ascending: false })
+            .limit(limit);
+
+        if (error || !data) return [];
+        return data.map((t: any, i: number) => ({ team_name: t.team_name, score: t.score, rank: i + 1 }));
+    },
+
+    /**
+     * Get total registered team count
+     */
+    async getTeamCount(): Promise<number> {
+        const { count, error } = await supabase
+            .from('teams')
+            .select('*', { count: 'exact', head: true });
+        if (error) return 0;
+        return count ?? 0;
+    },
+
+    // ── Question CRUD ──────────────────────────────────────────────
+
+    /**
+     * Add a single question
+     */
+    async addQuestion(q: { text: string; options: string[]; correct_option: string; order_index: number }) {
+        const { error } = await supabase.from('questions').insert([q]);
+        if (error) throw error;
+    },
+
+    /**
+     * Update a question
+     */
+    async updateQuestion(id: string, updates: Partial<{ text: string; options: string[]; correct_option: string; order_index: number }>) {
+        const { error } = await supabase.from('questions').update(updates).eq('id', id);
+        if (error) throw error;
+    },
+
+    /**
+     * Delete a question
+     */
+    async deleteQuestion(id: string) {
+        const { error } = await supabase.from('questions').delete().eq('id', id);
+        if (error) throw error;
+    },
+
+    /**
+     * Get all questions ordered
+     */
+    async getQuestions() {
+        const { data, error } = await supabase
+            .from('questions')
+            .select('*')
+            .order('order_index', { ascending: true });
+        if (error) return [];
+        return data ?? [];
+    },
+
+    /**
+     * Check if team already answered a question (for refresh protection)
+     */
+    async hasAnswered(teamId: string, questionId: string): Promise<boolean> {
+        const { data } = await supabase
+            .from('answers')
+            .select('id')
+            .eq('team_id', teamId)
+            .eq('question_id', questionId)
+            .maybeSingle();
+        return !!data;
     }
 };
