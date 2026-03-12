@@ -1,11 +1,12 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { supabase } from "@/lib/supabase";
 import { type GameSession } from "@/data/session";
 import { initialQuestions } from "@/data/questions";
 import { Play, SkipForward, RotateCcw, Users, Activity, ShieldAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ToggleTheme } from "@/components/ui/toggle-theme";
+import { sessionService } from "@/services/sessionService";
 
 export default function AdminDashboard() {
     const [session, setSession] = useState<GameSession | null>(null);
@@ -13,94 +14,77 @@ export default function AdminDashboard() {
 
     useEffect(() => {
         const fetchSession = async () => {
-            const { data, error } = await supabase
-                .from('game_sessions')
-                .select('*')
-                .single();
-
-            if (data && !error) setSession(data as GameSession);
+            const data = await sessionService.getSession();
+            if (data) setSession(data);
             setLoading(false);
         };
 
         fetchSession();
 
-        const channel = supabase
-            .channel('admin-sync')
-            .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'game_sessions' }, (payload) => {
-                setSession(payload.new as GameSession);
-            })
-            .subscribe();
+        const subscription = sessionService.subscribeToUpdates((newSession) => {
+            setSession(newSession);
+        });
 
         return () => {
-            supabase.removeChannel(channel);
+            subscription.unsubscribe();
         };
     }, []);
 
-    const updateSession = async (updates: Partial<GameSession>) => {
-        const { error } = await supabase
-            .from('game_sessions')
-            .update(updates)
-            .eq('id', 'active-session');
-
-        if (error) console.error("Update failed:", error);
-    };
+    // Countdown logic for auto-transition
+    useEffect(() => {
+        if (session?.status === 'COUNTDOWN') {
+            const timer = setTimeout(() => {
+                sessionService.startQuestion(0);
+            }, 5500); // 5.5s to give some buffer
+            return () => clearTimeout(timer);
+        }
+    }, [session?.status]);
 
     const handleStartQuiz = () => {
-        updateSession({
-            status: 'QUESTION',
-            current_question_index: 0,
-            timer_start: new Date().toISOString()
-        });
+        sessionService.startCountdown();
     };
 
     const handleNextQuestion = () => {
         if (!session) return;
         const nextIdx = session.current_question_index + 1;
         if (nextIdx < initialQuestions.length) {
-            updateSession({
-                current_question_index: nextIdx,
-                status: 'QUESTION',
-                timer_start: new Date().toISOString()
-            });
+            sessionService.startQuestion(nextIdx);
         } else {
-            updateSession({ status: 'FINISHED' });
+            sessionService.updateSession({ status: 'FINISHED' });
         }
     };
 
     const handleReset = () => {
-        updateSession({
-            status: 'LOBBY',
-            current_question_index: 0,
-            timer_start: null
-        });
+        sessionService.resetSession();
     };
 
-    if (loading) return <div className="min-h-screen bg-black flex items-center justify-center text-white">Initializing Admin Link...</div>;
+    if (loading) return <div className="min-h-screen bg-background flex items-center justify-center text-foreground">Initializing Admin Link...</div>;
 
     return (
-        <div className="min-h-screen bg-[#050505] text-white p-8 font-sans">
+        <div className="min-h-screen bg-background text-foreground p-8 font-sans transition-colors duration-500">
             <div className="max-w-4xl mx-auto space-y-8">
                 {/* Header */}
-                <div className="flex justify-between items-end border-b border-white/10 pb-6">
+                <div className="flex justify-between items-center border-b border-border pb-6">
                     <div>
                         <h1 className="text-4xl font-black italic tracking-tighter text-yellow-500">QUIZZILA ADMIN</h1>
                         <p className="text-slate-500 text-sm font-bold uppercase tracking-widest mt-1">Auditorium Command Center</p>
                     </div>
-                    <div className="flex gap-4">
-                        <div className="bg-white/5 border border-white/10 px-4 py-2 rounded-xl flex items-center gap-2">
+                    <div className="flex gap-4 items-center">
+                        <ToggleTheme />
+                        <div className="bg-muted/30 border border-border px-4 py-2 rounded-xl flex items-center gap-2">
                             <Users className="w-4 h-4 text-blue-400" />
                             <span className="text-xl font-black">120+</span>
                         </div>
-                        <div className="bg-white/5 border border-white/10 px-4 py-2 rounded-xl flex items-center gap-2">
+                        <div className="bg-muted/30 border border-border px-4 py-2 rounded-xl flex items-center gap-2">
                             <Activity className="w-4 h-4 text-emerald-400 animate-pulse" />
-                            <span className="text-xs font-bold uppercase tracking-tighter">Live Sync</span>
+                            <span className="text-xs font-bold uppercase tracking-tighter text-foreground">Live Sync</span>
                         </div>
                     </div>
                 </div>
 
                 {/* Current State Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div className="bg-white/5 p-6 rounded-3xl border border-white/10 space-y-2">
+                    <div className="bg-card p-6 rounded-3xl border border-border space-y-2">
                         <p className="text-[10px] uppercase font-black text-slate-500 tracking-widest">Active Status</p>
                         <div className="flex items-center gap-3">
                             <div className={cn(
@@ -110,21 +94,21 @@ export default function AdminDashboard() {
                             <p className="text-2xl font-black tracking-tight uppercase">{session?.status}</p>
                         </div>
                     </div>
-                    <div className="bg-white/5 p-6 rounded-3xl border border-white/10 space-y-2">
+                    <div className="bg-card p-6 rounded-3xl border border-border space-y-2">
                         <p className="text-[10px] uppercase font-black text-slate-500 tracking-widest">Current Index</p>
                         <p className="text-4xl font-black">
                             {session?.current_question_index !== undefined ? session.current_question_index + 1 : 0}
                             <span className="text-lg text-slate-600 font-normal"> / {initialQuestions.length}</span>
                         </p>
                     </div>
-                    <div className="bg-white/5 p-6 rounded-3xl border border-white/10 space-y-2">
+                    <div className="bg-card p-6 rounded-3xl border border-border space-y-2">
                         <p className="text-[10px] uppercase font-black text-slate-500 tracking-widest">Server Time</p>
                         <p className="text-2xl font-black tabular-nums">{new Date().toLocaleTimeString()}</p>
                     </div>
                 </div>
 
                 {/* Primary Controls */}
-                <div className="bg-white/5 p-8 rounded-[2.5rem] border border-white/10 shadow-2xl space-y-8">
+                <div className="bg-card p-8 rounded-[2.5rem] border border-border shadow-2xl space-y-8">
                     <h2 className="text-xl font-bold flex items-center gap-2">
                         <ShieldAlert className="w-5 h-5 text-yellow-500" />
                         Mission Controls
@@ -154,7 +138,7 @@ export default function AdminDashboard() {
 
                         <button
                             onClick={handleReset}
-                            className="flex items-center justify-center gap-3 py-6 bg-white/5 hover:bg-white/10 border border-white/10 rounded-3xl transition-all active:scale-95"
+                            className="flex items-center justify-center gap-3 py-6 bg-muted/20 hover:bg-muted/30 border border-border rounded-3xl transition-all active:scale-95"
                         >
                             <RotateCcw className="w-5 h-5 text-slate-500" />
                             <span className="text-xl font-bold text-slate-300">Reset Session</span>
@@ -163,7 +147,7 @@ export default function AdminDashboard() {
                 </div>
 
                 {/* Question Preview */}
-                <div className="bg-white/2 p-8 rounded-3xl border border-white/5 opacity-60 pointer-events-none">
+                <div className="bg-muted/10 p-8 rounded-3xl border border-border opacity-60 pointer-events-none">
                     <p className="text-[10px] uppercase font-black text-slate-500 mb-4 tracking-widest">Live Content Preview</p>
                     {session && initialQuestions[session.current_question_index] ? (
                         <div className="space-y-2">
