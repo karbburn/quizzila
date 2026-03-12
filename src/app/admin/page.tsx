@@ -58,7 +58,6 @@ export default function AdminDashboard() {
         sessionService.resetSession();
     };
 
-    if (loading) return <div className="min-h-screen bg-background flex items-center justify-center text-foreground">Initializing Admin Link...</div>;
 
     return (
         <div className="min-h-screen bg-background text-foreground p-8 font-sans transition-colors duration-500">
