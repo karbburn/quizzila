@@ -4,57 +4,23 @@ import React, { useState, useEffect } from "react";
 import { InteractiveHoverButton } from "@/components/ui/interactive-hover-button";
 import { Check, X, Trophy, Timer, ArrowRight, BrainCircuit } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-// --- Types ---
-interface Question {
-  numb: number;
-  question: string;
-  answer: string;
-  options: string[];
-}
-
-const questions: Question[] = [
-  {
-    numb: 1,
-    question: "What is the primary focus of Total Quality Management (TQM)?",
-    answer: "Customer Satisfaction",
-    options: ["Process Speed", "Customer Satisfaction", "Cost Reduction", "Market Expansion"]
-  },
-  {
-    numb: 2,
-    question: "Which of the following is a key principle of TQM implementation?",
-    answer: "Continuous Improvement",
-    options: ["Siloed Operations", "Annual Inspections", "Continuous Improvement", "Rigid Hierarchy"]
-  },
-  {
-    numb: 3,
-    question: "What does the 'PDCA' cycle stand for in quality management?",
-    answer: "Plan-Do-Check-Act",
-    options: ["Perform-Direct-Check-Analyze", "Plan-Do-Check-Act", "Prepare-Deploy-Control-Assess", "Process-Develop-Calculate-Audit"]
-  },
-  {
-    numb: 4,
-    question: "Who is often considered the 'Father of Quality Control'?",
-    answer: "W. Edwards Deming",
-    options: ["Henry Ford", "W. Edwards Deming", "Jack Welch", "Steve Jobs"]
-  },
-  {
-    numb: 5,
-    question: "In TQM, quality is defined primarily by whom?",
-    answer: "The Customer",
-    options: ["The Inspector", "The CEO", "The Engineer", "The Customer"]
-  }
-];
+import { initialQuestions, type Question } from "@/data/questions";
 
 // --- Sub-components ---
 
 export default function TQMQuizSite() {
   const [gameState, setGameState] = useState<"start" | "info" | "quiz" | "result">("start");
+  const [quizQuestions, setQuizQuestions] = useState<Question[]>(initialQuestions);
   const [currentQue, setCurrentQue] = useState(0);
   const [score, setScore] = useState(0);
   const [timeLeft, setTimeLeft] = useState(15);
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [showNext, setShowNext] = useState(false);
+
+  // Ready for backend integration
+  useEffect(() => {
+    // Example: fetch('/api/questions').then(res => res.json()).then(setQuizQuestions)
+  }, []);
 
   // Timer logic
   useEffect(() => {
@@ -90,14 +56,14 @@ export default function TQMQuizSite() {
   const handleOptionClick = (option: string) => {
     if (selectedOption) return;
     setSelectedOption(option);
-    if (option === questions[currentQue].answer) {
+    if (option === quizQuestions[currentQue].answer) {
       setScore((prev) => prev + 1);
     }
     setShowNext(true);
   };
 
   const handleNext = () => {
-    if (currentQue < questions.length - 1) {
+    if (currentQue < quizQuestions.length - 1) {
       setCurrentQue((prev) => prev + 1);
       resetQue();
     } else {
@@ -115,7 +81,7 @@ export default function TQMQuizSite() {
 
       {/* Main Container */}
       <div className="z-10 w-full max-w-2xl">
-        {/* Top Logo Branding (Top Right style requested) */}
+        {/* Top Logo Branding */}
         <div className="fixed top-8 right-8 flex items-center gap-3 bg-white/5 backdrop-blur-md border border-white/10 p-3 rounded-2xl shadow-2xl">
           <div className="w-10 h-10 bg-yellow-500 rounded-lg flex items-center justify-center text-black font-black text-xl italic shadow-[0_0_15px_rgba(234,179,8,0.4)]">
             ?
@@ -189,6 +155,7 @@ export default function TQMQuizSite() {
               <div className="absolute top-0 left-0 p-2 opacity-50">
                 <span className="text-[8px] font-bold tracking-widest uppercase">Quizzila</span>
               </div>
+
               {/* Progress Line */}
               <div
                 className="absolute bottom-0 left-0 h-1 bg-gradient-to-r from-blue-500 to-purple-500 transition-all duration-1000"
@@ -197,7 +164,7 @@ export default function TQMQuizSite() {
 
               <div>
                 <span className="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-1 block">Phase</span>
-                <p className="text-lg font-black tracking-tight">{questions[currentQue].numb} <span className="text-slate-500 font-normal">/ {questions.length}</span></p>
+                <p className="text-lg font-black tracking-tight">{quizQuestions[currentQue].numb} <span className="text-slate-500 font-normal">/ {quizQuestions.length}</span></p>
               </div>
 
               <div className="flex items-center gap-3 bg-black/40 px-4 py-2 rounded-2xl border border-white/5">
@@ -208,12 +175,12 @@ export default function TQMQuizSite() {
 
             <div className="bg-white/5 backdrop-blur-xl border border-white/10 p-10 rounded-[2.5rem] shadow-2xl space-y-8">
               <h2 className="text-2xl font-bold leading-tight">
-                {questions[currentQue].question}
+                {quizQuestions[currentQue].question}
               </h2>
 
               <div className="grid gap-4">
-                {questions[currentQue].options.map((option, i) => {
-                  const isCorrect = option === questions[currentQue].answer;
+                {quizQuestions[currentQue].options.map((option, i) => {
+                  const isCorrect = option === quizQuestions[currentQue].answer;
                   const isSelected = selectedOption === option;
                   const shouldShowCorrect = selectedOption && isCorrect;
                   const shouldShowWrong = isSelected && !isCorrect;
@@ -245,7 +212,7 @@ export default function TQMQuizSite() {
                     onClick={handleNext}
                     className="flex items-center gap-2 px-8 py-3 bg-white text-black font-black rounded-xl hover:bg-slate-200 transition-all active:scale-95 animate-in slide-in-from-right-8 duration-300"
                   >
-                    {currentQue < questions.length - 1 ? "Next Phase" : "Finalize"}
+                    {currentQue < quizQuestions.length - 1 ? "Next Phase" : "Finalize"}
                     <ArrowRight className="w-5 h-5" />
                   </button>
                 )}
@@ -272,10 +239,10 @@ export default function TQMQuizSite() {
             <div className="bg-black/40 rounded-3xl p-8 border border-white/5">
               <p className="text-slate-500 uppercase tracking-widest text-[10px] font-bold mb-2">Accuracy achieved</p>
               <h3 className="text-6xl font-black text-blue-400 tracking-tighter tabular-nums">
-                {Math.round((score / questions.length) * 100)}<span className="text-2xl text-slate-600">%</span>
+                {Math.round((score / quizQuestions.length) * 100)}<span className="text-2xl text-slate-600">%</span>
               </h3>
               <p className="mt-4 text-slate-300">
-                You secured <span className="text-white font-bold">{score}</span> out of <span className="text-white font-bold">{questions.length}</span> correct directives.
+                You secured <span className="text-white font-bold">{score}</span> out of <span className="text-white font-bold">{quizQuestions.length}</span> correct directives.
               </p>
             </div>
 
