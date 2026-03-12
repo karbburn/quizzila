@@ -16,9 +16,12 @@ export function useGameSession() {
 
         // Map database status to client state
         if (state.status === 'waiting') {
-            // Only move to lobby if we are not on the entry page OR if we already have a team
-            const hasTeam = typeof window !== 'undefined' && localStorage.getItem('quizzila_team');
-            setGameState(prev => (prev === 'entry' && !hasTeam) ? 'entry' : 'lobby');
+            // NEVER auto-transition from entry. The user must click "Start Quiz".
+            setGameState(prev => {
+                if (prev === 'entry') return 'entry';
+                // If we are already in lobby/quiz, we stay there or sync to lobby
+                return 'lobby';
+            });
         } else if (state.status === 'countdown') {
             setGameState('countdown');
             if (state.timer_end) {

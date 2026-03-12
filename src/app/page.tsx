@@ -174,12 +174,16 @@ export default function QuizzilaLive() {
                   </form>
                 ) : (
                   <div className="text-center space-y-16">
-                    <div className="space-y-4">
-                      <h1 className="text-4xl font-black tracking-tighter uppercase text-yellow-500">Quizzila Live</h1>
-                      <div className="inline-block px-4 py-1 bg-blue-500/10 border border-blue-500/20 rounded-full">
-                        <p className="text-blue-400 font-bold uppercase tracking-widest text-[10px]">Team: {team.name}</p>
+                    <div className="flex flex-col items-center gap-4 mb-2">
+                      <div className="w-20 h-20 bg-white rounded-2xl flex items-center justify-center overflow-hidden border border-yellow-500/20 shadow-xl">
+                        <img src="/tqm_logo.jpg" alt="TQM Logo" className="w-full h-full object-contain" />
                       </div>
-                      <p className="text-white/75 font-bold uppercase tracking-[0.3em] text-[10px] animate-pulse">Quiz will begin shortly</p>
+                      <div className="text-center space-y-1">
+                        <h1 className="text-3xl font-black tracking-tighter uppercase text-yellow-500 leading-none">Quizzila Live</h1>
+                        <div className="inline-block px-3 py-1 bg-blue-500/10 border border-blue-500/20 rounded-full">
+                          <p className="text-blue-400 font-bold uppercase tracking-widest text-[8px]">Team: {team.name}</p>
+                        </div>
+                      </div>
                     </div>
                     <div className="relative py-12">
                       <div className="absolute inset-0 bg-blue-500/5 blur-[100px] rounded-full" />
