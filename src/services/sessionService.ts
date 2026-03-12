@@ -202,7 +202,7 @@ export const sessionService = {
         const mappedQuestions = questions.map(q => ({
             order_index: q.numb,
             text: q.question,
-            correct_option: q.answer,
+            correct_option: String(q.answer).trim().toUpperCase().charAt(0),
             options: q.options
         }));
 
