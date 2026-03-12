@@ -1,108 +1,169 @@
 import { supabase } from "@/lib/supabase";
-import { type GameSession } from "@/data/session";
+import { type QuizState, type Team, type Answer, type QuizStatus } from "@/data/session";
 
-export const SESSION_ID = 'active-session';
+export const STATE_ID = 1;
 
 export const sessionService = {
     /**
-     * Fetch the current active session
+     * Fetch the global quiz state
      */
-    async getSession(): Promise<GameSession | null> {
-        console.log('Fetching session for ID:', SESSION_ID);
+    async getQuizState(): Promise<QuizState | null> {
         try {
             const { data, error } = await supabase
-                .from('game_sessions')
+                .from('quiz_state')
                 .select('*')
-                .eq('id', SESSION_ID)
+                .eq('id', STATE_ID)
                 .single();
 
             if (error) {
-                // PGRST116 means "No rows found" when using .single()
                 if (error.code === 'PGRST116') {
-                    console.log('Session not found, creating initial row...');
+                    console.log('Quiz state not found, creating initial row...');
                     const { data: newData, error: createError } = await supabase
-                        .from('game_sessions')
-                        .insert([{ id: SESSION_ID, status: 'LOBBY', current_question_index: 0 }])
+                        .from('quiz_state')
+                        .insert([{ id: STATE_ID, status: 'waiting', current_question: 0 }])
                         .select()
                         .single();
 
                     if (createError) {
-                        console.error('Failed to create initial session:', createError.message);
+                        console.error('Failed to create initial quiz state:', createError.message);
                         return null;
                     }
-                    return newData as GameSession;
+                    return newData as QuizState;
                 }
-
-                console.error('Error fetching session:', error.message || error);
+                console.error('Error fetching quiz state:', error.message);
                 return null;
             }
-            return data as GameSession;
+            return data as QuizState;
         } catch (err) {
-            console.error('Unexpected error in getSession:', err);
+            console.error('Unexpected error in getQuizState:', err);
             return null;
         }
     },
 
     /**
-     * Update the session state
+     * Update the quiz state
      */
-    async updateSession(updates: Partial<GameSession>) {
+    async updateQuizState(updates: Partial<QuizState>) {
         const { error } = await supabase
-            .from('game_sessions')
-            .update(updates)
-            .eq('id', SESSION_ID);
+            .from('quiz_state')
+            .update({ ...updates, updated_at: new Date().toISOString() })
+            .eq('id', STATE_ID);
 
         if (error) {
-            console.error('Error updating session:', error);
+            console.error('Error updating quiz state:', error.message);
             throw error;
         }
     },
 
     /**
-     * Subscribe to real-time session updates
+     * Subscribe to real-time state updates
      */
-    subscribeToUpdates(onUpdate: (session: GameSession) => void) {
+    subscribeToState(onUpdate: (state: QuizState) => void) {
         return supabase
-            .channel('live-quiz')
+            .channel('quiz-state-channel')
             .on(
                 'postgres_changes',
-                { event: 'UPDATE', schema: 'public', table: 'game_sessions', filter: `id=eq.${SESSION_ID}` },
+                { event: 'UPDATE', schema: 'public', table: 'quiz_state', filter: `id=eq.${STATE_ID}` },
                 (payload) => {
-                    onUpdate(payload.new as GameSession);
+                    onUpdate(payload.new as QuizState);
                 }
             )
             .subscribe();
     },
 
     /**
-     * Reset the session to Lobby
+     * Team Management: Register a new team
      */
-    async resetSession() {
-        return this.updateSession({
-            status: 'LOBBY',
-            current_question_index: 0,
-            timer_start: null
-        });
+    async registerTeam(teamData: Omit<Team, 'id' | 'score' | 'created_at'>): Promise<Team | null> {
+        const { data, error } = await supabase
+            .from('teams')
+            .insert([teamData])
+            .select()
+            .single();
+
+        if (error) {
+            console.error('Error registering team:', error.message);
+            return null;
+        }
+        return data as Team;
+    },
+
+    /**
+     * Submit an answer
+     */
+    async submitAnswer(answerData: Omit<Answer, 'id' | 'answered_at'>) {
+        const { error } = await supabase
+            .from('answers')
+            .insert([answerData]);
+
+        if (error) {
+            console.error('Error submitting answer:', error.message);
+            throw error;
+        }
     },
 
     /**
      * Transition to Countdown
      */
-    async startCountdown() {
-        return this.updateSession({
-            status: 'COUNTDOWN',
-            timer_start: new Date().toISOString()
+    async startCountdown(durationSeconds: number = 6) {
+        const timerEnd = new Date();
+        timerEnd.setSeconds(timerEnd.getSeconds() + durationSeconds);
+
+        return this.updateQuizState({
+            status: 'countdown',
+            timer_end: timerEnd.toISOString()
         });
     },
 
     /**
      * Start the Quiz at a specific question
      */
-    async startQuestion(index: number) {
-        return this.updateSession({
-            status: 'QUESTION',
-            current_question_index: index,
-            timer_start: new Date().toISOString()
+    async startQuestion(index: number, durationSeconds: number = 30) {
+        const timerEnd = new Date();
+        timerEnd.setSeconds(timerEnd.getSeconds() + durationSeconds);
+
+        return this.updateQuizState({
+            status: 'question_active',
+            current_question: index,
+            timer_end: timerEnd.toISOString()
+        });
+    },
+
+    /**
+     * Show the leaderboard
+     */
+    async showLeaderboard() {
+        return this.updateQuizState({
+            status: 'leaderboard'
+        });
+    },
+
+    /**
+     * End the quiz
+     */
+    async endQuiz() {
+        return this.updateQuizState({
+            status: 'finished'
+        });
+    },
+
+    /**
+     * Reset the quiz for the admin
+     */
+    async resetQuiz() {
+        // Clear dynamic data (not using uuid gte trick, just delete all)
+        // Note: Supabase RLS allows the deletions we configured
+        const { error: answersError } = await supabase.from('answers').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+        const { error: teamsError } = await supabase.from('teams').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+
+        if (answersError) console.error('Error clearing answers:', answersError.message);
+        if (teamsError) console.error('Error clearing teams:', teamsError.message);
+
+        // Reset state
+        return this.updateQuizState({
+            status: 'waiting',
+            current_question: 0,
+            timer_end: null
         });
     }
 };
