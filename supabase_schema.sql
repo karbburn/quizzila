@@ -176,10 +176,12 @@ $$;
 -- quiz_state: everyone can read; only service_role can write.
 ALTER TABLE public.quiz_state ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Anyone can read quiz state" ON public.quiz_state;
 CREATE POLICY "Anyone can read quiz state"
     ON public.quiz_state FOR SELECT
     USING (true);
 
+DROP POLICY IF EXISTS "Service role can update quiz state" ON public.quiz_state;
 CREATE POLICY "Service role can update quiz state"
     ON public.quiz_state FOR UPDATE
     USING (true);
@@ -187,6 +189,7 @@ CREATE POLICY "Service role can update quiz state"
 -- questions: everyone can read.
 ALTER TABLE public.questions ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Anyone can read questions" ON public.questions;
 CREATE POLICY "Anyone can read questions"
     ON public.questions FOR SELECT
     USING (true);
@@ -194,14 +197,17 @@ CREATE POLICY "Anyone can read questions"
 -- teams: anyone can read and insert (join).
 ALTER TABLE public.teams ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Anyone can read teams" ON public.teams;
 CREATE POLICY "Anyone can read teams"
     ON public.teams FOR SELECT
     USING (true);
 
+DROP POLICY IF EXISTS "Anyone can join as a team" ON public.teams;
 CREATE POLICY "Anyone can join as a team"
     ON public.teams FOR INSERT
     WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Allow deleting teams" ON public.teams;
 CREATE POLICY "Allow deleting teams"
     ON public.teams FOR DELETE
     USING (true);
@@ -209,14 +215,17 @@ CREATE POLICY "Allow deleting teams"
 -- answers: anyone can read and insert.
 ALTER TABLE public.answers ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Anyone can read answers" ON public.answers;
 CREATE POLICY "Anyone can read answers"
     ON public.answers FOR SELECT
     USING (true);
 
+DROP POLICY IF EXISTS "Anyone can submit an answer" ON public.answers;
 CREATE POLICY "Anyone can submit an answer"
     ON public.answers FOR INSERT
     WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Allow deleting answers" ON public.answers;
 CREATE POLICY "Allow deleting answers"
     ON public.answers FOR DELETE
     USING (true);
