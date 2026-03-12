@@ -37,15 +37,10 @@ $$;
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.questions (
     id             UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-    question_text  TEXT        NOT NULL,
-    option_a       TEXT        NOT NULL,
-    option_b       TEXT        NOT NULL,
-    option_c       TEXT        NOT NULL,
-    option_d       TEXT        NOT NULL,
-    correct_option CHAR(1)    NOT NULL,
-    points         INTEGER    NOT NULL DEFAULT 100,
-    order_index    INTEGER    NOT NULL,
-    timer_seconds  INTEGER    NOT NULL DEFAULT 30,
+    text           TEXT        NOT NULL,
+    options        JSONB       NOT NULL, -- Array of strings
+    correct_option CHAR(1)     NOT NULL,
+    order_index    INTEGER     NOT NULL,
     created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
 
     CONSTRAINT chk_correct_option CHECK (correct_option IN ('A', 'B', 'C', 'D')),
@@ -228,8 +223,21 @@ CREATE POLICY "Allow deleting answers"
 
 
 -- ---------------------------------------------------------------------------
--- 8. HELPER QUERIES (for reference, not executed)
+-- 8. HELPER FUNCTIONS
 -- ---------------------------------------------------------------------------
+
+-- Atomic increment for team score to prevent race conditions during live events
+CREATE OR REPLACE FUNCTION public.increment_team_score(t_id UUID, points_to_add INTEGER)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+    UPDATE public.teams
+    SET score = score + points_to_add
+    WHERE id = t_id;
+END;
+$$;
 
 -- RESET SESSION (run from admin dashboard)
 -- DELETE FROM public.answers;
