@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect } from "react";
 import { InteractiveHoverButton } from "@/components/ui/interactive-hover-button";
-import { Check, X, Trophy, Timer, BrainCircuit, ShieldCheck } from "lucide-react";
+import { Check, X, Trophy, Timer, BrainCircuit, ShieldCheck, ShieldAlert } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { initialQuestions, type Question } from "@/data/questions";
 import { ToggleTheme } from "@/components/ui/toggle-theme";
@@ -25,6 +26,19 @@ export default function QuizzilaLive() {
   const [team, setTeam] = useState<{ id: string, name: string } | null>(null);
   const [regData, setRegData] = useState({ teamName: '', member1: '', member2: '', member3: '', member4: '' });
   const [isRegistering, setIsRegistering] = useState(false);
+  const [showAdminLogin, setShowAdminLogin] = useState(false);
+  const [adminCreds, setAdminCreds] = useState({ username: '', password: '' });
+  const [adminError, setAdminError] = useState('');
+  const router = useRouter();
+
+  const handleAdminLogin = () => {
+    if (adminCreds.username === 'TheQuizMasters' && adminCreds.password === 'TheQuizMasters2350') {
+      router.push('/admin');
+    } else {
+      setAdminError('Invalid credentials');
+      setTimeout(() => setAdminError(''), 2000);
+    }
+  };
 
   // Load team from localStorage on mount
   useEffect(() => {
@@ -95,6 +109,30 @@ export default function QuizzilaLive() {
       <div className="fixed top-8 right-8 z-[100]">
         <ToggleTheme />
       </div>
+      <button onClick={() => setShowAdminLogin(true)} className="fixed top-8 left-8 z-[100] px-4 py-2 bg-card/80 backdrop-blur-md border border-border rounded-xl text-[10px] font-bold uppercase tracking-widest text-slate-400 hover:text-white hover:border-yellow-500/50 transition-all flex items-center gap-2">
+        <ShieldAlert className="w-3.5 h-3.5" /> Admin Login
+      </button>
+
+      {/* Admin Login Modal */}
+      {showAdminLogin && (
+        <div className="fixed inset-0 bg-black/60 z-[200] flex items-center justify-center animate-in fade-in duration-200" onClick={() => setShowAdminLogin(false)}>
+          <div className="bg-card border border-border rounded-2xl p-8 max-w-sm w-full mx-4 space-y-5 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="text-center space-y-1">
+              <ShieldAlert className="w-8 h-8 text-yellow-500 mx-auto" />
+              <h3 className="text-xl font-black uppercase tracking-tight">Admin Access</h3>
+              <p className="text-[10px] text-slate-500 uppercase tracking-widest">Authorized Personnel Only</p>
+            </div>
+            <div className="space-y-3">
+              <input type="text" placeholder="Username" value={adminCreds.username} onChange={e => setAdminCreds({ ...adminCreds, username: e.target.value })} className="w-full bg-background border border-border px-4 py-3 rounded-xl focus:border-yellow-500 outline-none transition-all text-sm" />
+              <input type="password" placeholder="Password" value={adminCreds.password} onChange={e => setAdminCreds({ ...adminCreds, password: e.target.value })} onKeyDown={e => e.key === 'Enter' && handleAdminLogin()} className="w-full bg-background border border-border px-4 py-3 rounded-xl focus:border-yellow-500 outline-none transition-all text-sm" />
+            </div>
+            {adminError && <p className="text-red-400 text-xs font-bold text-center">{adminError}</p>}
+            <button onClick={handleAdminLogin} className="w-full py-3 bg-yellow-500 hover:bg-yellow-400 text-black font-black uppercase tracking-widest rounded-xl transition-all active:scale-95">
+              Login
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* 1. PRE-GAME STATES (Wrapped in Infinite Grid) */}
       {gameState !== "quiz" && gameState !== "finished" ? (
