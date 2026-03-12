@@ -92,6 +92,9 @@ export default function QuizzilaLive() {
 
   return (
     <div className="min-h-screen w-full bg-background text-foreground flex items-center justify-center relative overflow-hidden font-sans">
+      <div className="fixed top-8 right-8 z-[100]">
+        <ToggleTheme />
+      </div>
 
       {/* 1. PRE-GAME STATES (Wrapped in Infinite Grid) */}
       {gameState !== "quiz" && gameState !== "finished" ? (
