@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { InteractiveHoverButton } from "@/components/ui/interactive-hover-button";
-import { Check, X, Trophy, Timer, BrainCircuit, ShieldCheck, ShieldAlert } from "lucide-react";
+import { Check, X, Trophy, Timer, BrainCircuit, ShieldCheck, ShieldAlert, Users, Sparkles, AlertCircle, Activity } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { initialQuestions, type Question } from "@/data/questions";
@@ -23,9 +23,9 @@ export default function QuizzilaLive() {
     isInitialized
   } = useGameSession();
 
-  const [quizQuestions] = useState<Question[]>(initialQuestions);
   const [score, setScore] = useState(0);
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
+  const [selectedOptionFeedback, setSelectedOptionFeedback] = useState<"correct" | "incorrect" | null>(null);
   const [answerStats, setAnswerStats] = useState<{ A: number; B: number; C: number; D: number; total: number } | null>(null);
   const [submissionLatency, setSubmissionLatency] = useState<number | null>(null);
   const [team, setTeam] = useState<{ id: string, name: string } | null>(null);
@@ -112,17 +112,18 @@ export default function QuizzilaLive() {
   // Reset local state when question changes
   useEffect(() => {
     setSelectedOption(null);
+    setSelectedOptionFeedback(null);
 
     // Check if team already answered this question (persistence)
-    if (team && gameState === "quiz") {
-      sessionService.hasAnswered(team.id, quizQuestions[currentQue].numb.toString())
+    if (team && currentQuestionData && gameState === "quiz") {
+      sessionService.hasAnswered(team.id, currentQuestionData.id)
         .then(answered => {
           if (answered) {
             setSelectedOption("ALREADY_ANSWERED" as any); // Lock UI
           }
         });
     }
-  }, [currentQue, team, gameState, quizQuestions]);
+  }, [currentQue, team, gameState, currentQuestionData]);
 
   const handleOptionClick = async (option: string) => {
     if (selectedOption || gameState !== "quiz") return;
@@ -130,20 +131,24 @@ export default function QuizzilaLive() {
 
     const startTime = performance.now();
 
-    if (team) {
+    if (team && currentQuestionData) {
+      // Find the normalized A B C D character for the selected option
+      const optionIndex = currentQuestionData.options.indexOf(option);
+      const normalizedOption = (['A', 'B', 'C', 'D'][optionIndex] || 'A') as 'A' | 'B' | 'C' | 'D';
+
+      // We assume correct_option is either the text itself or 'A','B','C','D'.
+      const isCorrect = option === currentQuestionData.correct_option || normalizedOption === currentQuestionData.correct_option;
+
       await sessionService.submitAnswer({
         team_id: team.id,
-        question_id: quizQuestions[currentQue].numb.toString(),
-        selected_option: (['A', 'B', 'C', 'D'][quizQuestions[currentQue].options.indexOf(option)] || 'A') as 'A' | 'B' | 'C' | 'D',
-        is_correct: option === quizQuestions[currentQue].answer,
+        question_id: currentQuestionData.id,
+        selected_option: normalizedOption,
+        is_correct: isCorrect,
       }, timeLeft);
 
       const endTime = performance.now();
       setSubmissionLatency(Math.round(endTime - startTime));
-    }
-
-    if (option === quizQuestions[currentQue].answer) {
-      setScore((prev) => prev + 1);
+      setSelectedOptionFeedback(isCorrect ? "correct" : "incorrect");
     }
   };
 
@@ -424,7 +429,7 @@ export default function QuizzilaLive() {
                   <div className="absolute bottom-0 left-0 h-1 bg-gradient-to-r from-blue-500 to-purple-500 transition-all duration-1000" style={{ width: `${(timeLeft / 30) * 100}%` }} />
                   <div>
                     <span className="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-1 block">Phase</span>
-                    <p className="text-lg font-black tracking-tight">{(currentQue + 1)} <span className="text-slate-500 font-normal">/ {quizQuestions.length}</span></p>
+                    <p className="text-lg font-black tracking-tight">Question {currentQue + 1}</p>
                   </div>
                   <div className="flex items-center gap-2">
                     {gameState === "quiz" && !selectedOption && (
@@ -486,7 +491,7 @@ export default function QuizzilaLive() {
             )}
 
             {/* REVEAL: Result + Stats */}
-            {gameState === "reveal" && (
+            {gameState === "reveal" && currentQuestionData && (
               <div className="space-y-6 animate-in fade-in zoom-in duration-500">
                 <header className="bg-card backdrop-blur-md p-6 rounded-3xl border border-border shadow-xl text-center">
                   <h2 className="text-sm font-black uppercase tracking-[0.3em] text-orange-400 mb-1">Answer Reveal</h2>
@@ -507,7 +512,7 @@ export default function QuizzilaLive() {
 
                   <div className="space-y-6">
                     <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Your Result</p>
-                    {selectedOption === (currentQuestionData?.options && currentQuestionData?.correct_option ? currentQuestionData.options[['A', 'B', 'C', 'D'].indexOf(currentQuestionData.correct_option)] : null) ? (
+                    {selectedOptionFeedback === "correct" ? (
                       <div className="space-y-3 animate-bounce">
                         <div className="w-20 h-20 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto border border-emerald-500/30">
                           <Check className="w-12 h-12 text-emerald-500" />
@@ -602,8 +607,8 @@ export default function QuizzilaLive() {
                   <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Auditorium Validation Complete</p>
                 </div>
                 <div className="bg-muted/50 rounded-[2.5rem] p-10 border border-border shadow-inner">
-                  <p className="text-slate-500 uppercase tracking-widest text-[10px] font-bold mb-4">Your Intelligence Quotient</p>
-                  <h3 className="text-7xl font-black tracking-tighter tabular-nums">{Math.round((score / quizQuestions.length) * 100)}<span className="text-2xl text-slate-600">%</span></h3>
+                  <p className="text-slate-500 uppercase tracking-widest text-[10px] font-bold mb-4">Correct Answers</p>
+                  <h3 className="text-7xl font-black tracking-tighter tabular-nums">{score}</h3>
                 </div>
                 <p className="text-slate-500 text-xs">Leaderboard will be projected on the main screen.</p>
               </div>
