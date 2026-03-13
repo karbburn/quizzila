@@ -4,6 +4,7 @@ export interface QuizState {
     id: number;
     status: QuizStatus;
     current_question: number; // order_index of the question
+    step_number: number;      // Presentation sequence number
     timer_end: string | null; // ISO timestamp
     updated_at: string;
 }

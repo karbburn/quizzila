@@ -131,28 +131,45 @@ export const sessionService = {
     },
 
     /**
-     * Start the Quiz at a specific question
+     * Start Question directly (no countdown, legacy)
      */
-    async startQuestion(index: number, durationSeconds: number = 30) {
+    async startQuestion(index: number) {
         const timerEnd = new Date();
-        timerEnd.setSeconds(timerEnd.getSeconds() + durationSeconds);
+        timerEnd.setSeconds(timerEnd.getSeconds() + 30); // 30 seconds to answer
 
         return this.updateQuizState({
             status: 'question_active',
             current_question: index,
-            timer_end: timerEnd.toISOString()
+            timer_end: timerEnd.toISOString(),
+            step_number: index + 1 // Default fallback
         });
     },
 
     /**
-     * Transition to Countdown
+     * Transition to Countdown (with anticipation timer)
      */
-    async startCountdown(durationSeconds: number = 6) {
+    async startCountdown(targetQuestionIndex: number, stepNumber: number, durationSeconds: number = 3) {
         const timerEnd = new Date();
         timerEnd.setSeconds(timerEnd.getSeconds() + durationSeconds);
 
         return this.updateQuizState({
             status: 'countdown',
+            current_question: targetQuestionIndex,
+            step_number: stepNumber,
+            timer_end: timerEnd.toISOString()
+        });
+    },
+
+    /**
+     * Activate previously countdown-ed question
+     */
+    async activateQuestion() {
+        const timerEnd = new Date();
+        timerEnd.setSeconds(timerEnd.getSeconds() + 30); // 30 seconds to answer
+
+        // Maintain current_question and step_number, just change status and timer
+        return this.updateQuizState({
+            status: 'question_active',
             timer_end: timerEnd.toISOString()
         });
     },
@@ -208,7 +225,7 @@ export const sessionService = {
         // Clear existing questions
         await supabase.from('questions').delete().neq('id', '00000000-0000-0000-0000-000000000000');
 
-        const mappedQuestions = questions.map(q => {
+        const mappedQuestions = questions.map((q, i) => {
             let ans = String(q.answer || '').trim().toUpperCase();
             let finalAns = 'A';
 
@@ -225,7 +242,7 @@ export const sessionService = {
             }
 
             return {
-                order_index: q.numb,
+                order_index: i,
                 text: q.question,
                 correct_option: finalAns,
                 options: q.options

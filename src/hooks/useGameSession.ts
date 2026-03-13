@@ -9,6 +9,7 @@ export function useGameSession() {
     const [gameState, setGameState] = useState<ClientGameState>("entry");
     const [quizStatus, setQuizStatus] = useState<QuizStatus>("waiting");
     const [currentQue, setCurrentQue] = useState(0);
+    const [stepNumber, setStepNumber] = useState(1);
     const [currentQuestionData, setCurrentQuestionData] = useState<any | null>(null);
     const [timeLeft, setTimeLeft] = useState(30);
     const [teamCount, setTeamCount] = useState(0);
@@ -18,6 +19,9 @@ export function useGameSession() {
     const handleStateUpdate = useCallback((state: QuizState) => {
         setQuizStatus(state.status);
         setCurrentQue(state.current_question);
+        if (state.step_number !== undefined) {
+            setStepNumber(state.step_number);
+        }
 
         // Map database status to client state
         if (state.status === 'waiting') {
@@ -113,6 +117,7 @@ export function useGameSession() {
         quizStatus,
         setGameState,
         currentQue,
+        stepNumber,
         currentQuestionData,
         timeLeft,
         setTimeLeft,

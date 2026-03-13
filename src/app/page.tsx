@@ -17,8 +17,10 @@ export default function QuizzilaLive() {
     quizStatus,
     setGameState,
     currentQue,
+    stepNumber,
     currentQuestionData,
     timeLeft,
+    setTimeLeft,
     teamCount,
     isInitialized
   } = useGameSession();
@@ -383,8 +385,12 @@ export default function QuizzilaLive() {
             {gameState === "countdown" && (
               <div className="text-center space-y-12 animate-in fade-in zoom-in duration-500">
                 <div className="space-y-4">
-                  <p className="text-yellow-500 font-black uppercase tracking-[0.3em] text-sm animate-bounce">Host started the quiz</p>
-                  <h2 className="text-2xl font-bold text-slate-400">Quiz will begin shortly</h2>
+                  <p className="text-yellow-500 font-black uppercase tracking-[0.3em] text-sm animate-bounce">
+                    {stepNumber === 1 ? "Host started the quiz" : "Get Ready"}
+                  </p>
+                  <h2 className="text-2xl font-bold text-slate-400">
+                    {stepNumber === 1 ? "Quiz will begin shortly" : `Question ${stepNumber} is about to appear!`}
+                  </h2>
                 </div>
                 <div className="relative flex items-center justify-center p-20">
                   <div className="absolute inset-0 bg-yellow-500/10 blur-[100px] rounded-full animate-pulse" />
@@ -429,7 +435,7 @@ export default function QuizzilaLive() {
                   <div className="absolute bottom-0 left-0 h-1 bg-gradient-to-r from-blue-500 to-purple-500 transition-all duration-1000" style={{ width: `${(timeLeft / 30) * 100}%` }} />
                   <div>
                     <span className="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-1 block">Phase</span>
-                    <p className="text-lg font-black tracking-tight">Question {currentQue + 1}</p>
+                    <p className="text-lg font-black tracking-tight">Question {stepNumber}</p>
                   </div>
                   <div className="flex items-center gap-2">
                     {gameState === "quiz" && !selectedOption && (

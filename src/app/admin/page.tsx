@@ -122,17 +122,19 @@ export default function AdminDashboard() {
     // ── Countdown auto-advance ──
     useEffect(() => {
         if (quizState?.status === 'countdown' && !loading) {
-            const t = setTimeout(() => sessionService.startQuestion(0, timerDuration), 5500);
+            const timeDiff = quizState.timer_end ? Math.max(50, new Date(quizState.timer_end).getTime() - Date.now() + 200) : 3200;
+            const t = setTimeout(() => sessionService.activateQuestion(), timeDiff);
             return () => clearTimeout(t);
         }
-    }, [quizState?.status, loading, timerDuration]);
+    }, [quizState?.status, quizState?.timer_end, loading]);
 
     // ── Handlers ──
-    const handleStartQuiz = () => sessionService.startCountdown();
+    const handleStartQuiz = () => sessionService.startCountdown(0, 1, 3);
     const handleNextQuestion = () => {
         if (!quizState) return;
         const next = quizState.current_question + 1;
-        next < questions.length ? sessionService.startQuestion(next, timerDuration) : sessionService.endQuiz();
+        const nextStep = (quizState.step_number || 1) + 1;
+        next < questions.length ? sessionService.startCountdown(next, nextStep, 3) : sessionService.endQuiz();
     };
     const handleShowLeaderboard = async () => { await sessionService.showLeaderboard(); await loadTeams(); };
     const handleRevealAnswer = async () => {
@@ -247,7 +249,7 @@ export default function AdminDashboard() {
                                 <label className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Correct Option</label>
                                 <div className="flex gap-2 mt-1">
                                     {['A', 'B', 'C', 'D'].map(opt => (
-                                        <button key={opt} onClick={() => setNewQ({ ...newQ, correct_option: opt })} className={cn("w-12 py-2 rounded-lg font-bold transition-all", newQ.correct_option === opt ? "bg-emerald-600 text-white" : "bg-slate-700 text-slate-400 hover:bg-slate-600")}>{opt}</button>
+                                        <button key={opt} onClick={(e) => { e.preventDefault(); setNewQ({ ...newQ, correct_option: opt }); }} className={cn("w-12 py-2 rounded-lg font-bold transition-all", newQ.correct_option === opt ? "bg-emerald-600 text-white" : "bg-slate-700 text-slate-400 hover:bg-slate-600")}>{opt}</button>
                                     ))}
                                 </div>
                             </div>
@@ -299,7 +301,7 @@ export default function AdminDashboard() {
                         <div className="bg-card border border-slate-700 rounded-lg p-3 flex items-center gap-4 flex-wrap">
                             <span className="font-bold text-slate-300">Live Event Quiz</span>
                             <span className="text-slate-500">|</span>
-                            <span className="text-slate-400">Question <span className="font-black text-white">{(quizState?.current_question ?? 0) + 1}</span> / {questions.length}</span>
+                            <span className="text-slate-400">Question <span className="font-black text-white">{quizState?.step_number ?? 1}</span> / {questions.length}</span>
                             <span className="text-slate-500">|</span>
                             {/* Progress Bar */}
                             <div className="flex items-center gap-2 flex-1 min-w-[120px]">
@@ -346,7 +348,7 @@ export default function AdminDashboard() {
                             <div className="space-y-4">
                                 {/* Question Panel */}
                                 <div className="bg-card border border-slate-700 rounded-lg p-5 space-y-4">
-                                    <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Question {(quizState?.current_question ?? 0) + 1}:</p>
+                                    <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Question {quizState?.step_number ?? 1}:</p>
                                     <p className="text-lg font-bold leading-snug">{currentQ?.text || "No active question"}</p>
                                     {currentQ && (
                                         <div className="grid grid-cols-2 gap-3">
@@ -462,7 +464,7 @@ export default function AdminDashboard() {
                         <div className="bg-card border border-slate-700 rounded-lg p-3 flex items-center gap-4 flex-wrap">
                             <span className="font-bold text-slate-300">Live Event Quiz</span>
                             <span className="text-slate-500">|</span>
-                            <span className="text-slate-400">Question <span className="font-black text-white">{(quizState?.current_question ?? 0) + 1}</span> / {questions.length}</span>
+                            <span className="text-slate-400">Question <span className="font-black text-white">{quizState?.step_number ?? 1}</span> / {questions.length}</span>
                             <span className="text-slate-500">|</span>
                             <span className="text-slate-400">Status: <span className="text-yellow-400 font-bold capitalize">{quizState?.status?.replace('_', ' ')}</span></span>
                             <span className="text-slate-500">|</span>
@@ -503,9 +505,10 @@ export default function AdminDashboard() {
 
                         {/* Question Table */}
                         <div className="bg-card border border-slate-700 rounded-lg overflow-hidden">
-                            <div className="grid grid-cols-[40px_1fr_80px_80px] gap-2 px-4 py-2 bg-slate-800/50 border-b border-slate-700 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                            <div className="grid grid-cols-[40px_1fr_80px_60px_60px] gap-2 px-4 py-2 bg-slate-800/50 border-b border-slate-700 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
                                 <span>Q#</span>
                                 <span>Short Question Preview</span>
+                                <span className="text-center">Push Live</span>
                                 <span className="text-center">Edit</span>
                                 <span className="text-center">Delete</span>
                             </div>
@@ -514,9 +517,10 @@ export default function AdminDashboard() {
                             ) : (
                                 <div className="max-h-[55vh] overflow-y-auto divide-y divide-slate-700/50">
                                     {questions.map((q) => (
-                                        <div key={q.id} className="grid grid-cols-[40px_1fr_80px_80px] gap-2 px-4 py-2.5 hover:bg-slate-800/30 transition-colors items-center">
-                                            <span className="text-xs font-bold text-slate-500 tabular-nums">{q.order_index}.</span>
+                                        <div key={q.id} className="grid grid-cols-[40px_1fr_80px_60px_60px] gap-2 px-4 py-2.5 hover:bg-slate-800/30 transition-colors items-center">
+                                            <span className="text-xs font-bold text-slate-500 tabular-nums">{q.order_index + 1}.</span>
                                             <span className="text-xs truncate">{q.text}</span>
+                                            <button onClick={() => sessionService.startCountdown(q.order_index, (quizState?.step_number || 0) + 1, 3)} className="text-center text-[10px] font-bold text-purple-400 hover:text-purple-300 uppercase transition-colors px-2 py-1 bg-purple-500/10 rounded">Push Live</button>
                                             <button onClick={() => {
                                                 setNewQ({ text: q.text, options: q.options, correct_option: q.correct_option, order_index: q.order_index });
                                                 setEditingQ(q.id);
