@@ -13,8 +13,12 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Karbburn Quiz",
+  title: "Quizzila",
   description: "Professional Quiz Platform by Sourabh",
+  icons: {
+    icon: "/kb_logo.png",
+    apple: "/kb_logo.png",
+  }
 };
 
 import { ThemeProvider } from "@/components/theme-provider";

@@ -220,14 +220,17 @@ export default function QuizzilaLive() {
                   <div className="inline-block p-1 bg-white rounded-3xl mb-4 border border-yellow-500/20 overflow-hidden shadow-2xl">
                     <img
                       src="/kb_logo.png"
-                      alt="Karbburn Logo"
+                      alt="Logo"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = '/tqm_logo.jpg';
+                      }}
                       className="w-24 h-24 object-contain"
                     />
                   </div>
                   <h2 className="text-8xl font-black tracking-tighter bg-gradient-to-b from-white to-slate-500 bg-clip-text text-transparent">
-                    Karbburn Quiz
+                    Quizzila
                   </h2>
-                  <p className="text-slate-500 font-medium tracking-wide uppercase text-xs">The Ultimate Quiz Platform</p>
+                  <p className="text-slate-500 font-medium tracking-wide uppercase text-xs">The Ultimate TQM Assessment Platform</p>
                 </div>
                 <div className="flex justify-center pt-8">
                   <InteractiveHoverButton
