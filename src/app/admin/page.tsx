@@ -179,12 +179,17 @@ export default function AdminDashboard() {
         });
     };
 
-    const handleAddQuestion = async () => {
+    const handleSaveQuestion = async () => {
         try {
-            await sessionService.addQuestion({ ...newQ, order_index: questions.length });
+            if (editingQ) {
+                await sessionService.updateQuestion(editingQ, newQ);
+            } else {
+                await sessionService.addQuestion({ ...newQ, order_index: questions.length });
+            }
             await loadQuestions();
             setShowAddModal(false);
             setNewQ({ text: "", options: ["", "", "", ""], correct_option: "A", order_index: 0 });
+            setEditingQ(null);
         } catch (err: any) {
             alert("Error: " + err.message);
         }
@@ -224,7 +229,7 @@ export default function AdminDashboard() {
             {showAddModal && (
                 <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center animate-in fade-in duration-200">
                     <div className="bg-card border border-slate-600 rounded-xl p-6 max-w-lg w-full mx-4 space-y-4 shadow-2xl">
-                        <h3 className="text-lg font-black uppercase tracking-tight">Add/Edit Question</h3>
+                        <h3 className="text-lg font-black uppercase tracking-tight">{editingQ ? 'Edit' : 'Add'} Question</h3>
                         <div className="space-y-3">
                             <div>
                                 <label className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Question Text</label>
@@ -252,8 +257,8 @@ export default function AdminDashboard() {
                             </div>
                         </div>
                         <div className="flex gap-3 pt-2">
-                            <button onClick={handleAddQuestion} className="flex-1 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold uppercase rounded-lg transition-all active:scale-95">Save Question</button>
-                            <button onClick={() => setShowAddModal(false)} className="flex-1 py-3 bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold uppercase rounded-lg transition-all active:scale-95">Cancel</button>
+                            <button onClick={handleSaveQuestion} className="flex-1 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold uppercase rounded-lg transition-all active:scale-95">{editingQ ? 'Update' : 'Save'} Question</button>
+                            <button onClick={() => { setShowAddModal(false); setEditingQ(null); }} className="flex-1 py-3 bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold uppercase rounded-lg transition-all active:scale-95">Cancel</button>
                         </div>
                     </div>
                 </div>
@@ -512,7 +517,11 @@ export default function AdminDashboard() {
                                         <div key={q.id} className="grid grid-cols-[40px_1fr_80px_80px] gap-2 px-4 py-2.5 hover:bg-slate-800/30 transition-colors items-center">
                                             <span className="text-xs font-bold text-slate-500 tabular-nums">{q.order_index}.</span>
                                             <span className="text-xs truncate">{q.text}</span>
-                                            <button className="text-center text-[10px] font-bold text-blue-400 hover:text-blue-300 uppercase transition-colors">Edit</button>
+                                            <button onClick={() => {
+                                                setNewQ({ text: q.text, options: q.options, correct_option: q.correct_option, order_index: q.order_index });
+                                                setEditingQ(q.id);
+                                                setShowAddModal(true);
+                                            }} className="text-center text-[10px] font-bold text-blue-400 hover:text-blue-300 uppercase transition-colors">Edit</button>
                                             <button onClick={() => handleDeleteQuestion(q.id)} className="text-center text-[10px] font-bold text-red-400 hover:text-red-300 uppercase transition-colors">Delete</button>
                                         </div>
                                     ))}
