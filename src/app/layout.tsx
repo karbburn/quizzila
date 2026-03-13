@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Quizzila",
+  title: "Karbburn Quiz",
   description: "Professional Quiz Platform by Sourabh",
   icons: {
     icon: "/kb_logo.png",
