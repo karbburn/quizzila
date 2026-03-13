@@ -459,5 +459,17 @@ export const sessionService = {
             .eq('team_name', name.trim())
             .maybeSingle();
         return !!data;
+    },
+
+    /**
+     * Get all currently registered teams
+     */
+    async getTeams(): Promise<Team[]> {
+        const { data, error } = await supabase
+            .from('teams')
+            .select('*')
+            .order('created_at', { ascending: true });
+        if (error) return [];
+        return data ?? [];
     }
 };

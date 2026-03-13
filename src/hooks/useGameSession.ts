@@ -13,6 +13,8 @@ export function useGameSession() {
     const [currentQuestionData, setCurrentQuestionData] = useState<any | null>(null);
     const [timeLeft, setTimeLeft] = useState(30);
     const [teamCount, setTeamCount] = useState(0);
+    const [allTeams, setAllTeams] = useState<any[]>([]);
+    const [answerStats, setAnswerStats] = useState<{ A: number, B: number, C: number, D: number, total: number }>({ A: 0, B: 0, C: 0, D: 0, total: 0 });
     const [isInitialized, setIsInitialized] = useState(false);
 
     // --- Real-time Sync Logic ---
@@ -59,9 +61,15 @@ export function useGameSession() {
 
         // Fetch question data securely (prevents answer leaks)
         if (state.status === 'question_active' || state.status === 'answer_reveal') {
-            sessionService.getCurrentQuestionSecure().then(setCurrentQuestionData);
+            sessionService.getCurrentQuestionSecure().then((qData) => {
+                setCurrentQuestionData(qData);
+                if (qData?.id) {
+                    sessionService.getAnswerStats(qData.id).then(setAnswerStats);
+                }
+            });
         } else {
             setCurrentQuestionData(null);
+            setAnswerStats({ A: 0, B: 0, C: 0, D: 0, total: 0 });
         }
     }, []);
 
@@ -81,6 +89,12 @@ export function useGameSession() {
         // 2. Subscribe to real-time updates
         const stateSub = sessionService.subscribeToState(handleStateUpdate);
 
+        // 2.0 Fetch all teams
+        sessionService.getTeams().then(setAllTeams);
+        const allTeamsSub = sessionService.subscribeToTeams((newTeam) => {
+            setAllTeams(prev => [...prev, newTeam]);
+        });
+
         // 2.1 Subscribe to team updates
         const teamSub = sessionService.subscribeToTeams(() => {
             sessionService.getTeamCount().then(setTeamCount);
@@ -91,13 +105,24 @@ export function useGameSession() {
             .channel('teams-delete-channel')
             .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'teams' }, () => {
                 sessionService.getTeamCount().then(setTeamCount);
+                sessionService.getTeams().then(setAllTeams);
             })
             .subscribe();
 
+        // 2.3 Subscribe to answers for live stats
+        const answersSub = sessionService.subscribeToAnswers(() => {
+            // Re-fetch stats when a new answer comes in
+            if (currentQuestionData?.id) {
+                sessionService.getAnswerStats(currentQuestionData.id).then(setAnswerStats);
+            }
+        });
+
         return () => {
             stateSub.unsubscribe();
+            allTeamsSub.unsubscribe();
             teamSub.unsubscribe();
             teamDeleteSub.unsubscribe();
+            answersSub.unsubscribe();
         };
     }, [handleStateUpdate]);
 
@@ -122,6 +147,8 @@ export function useGameSession() {
         timeLeft,
         setTimeLeft,
         teamCount,
+        allTeams,
+        answerStats,
         isInitialized
     };
 }
