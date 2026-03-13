@@ -39,8 +39,8 @@ export default function ProjectorPage() {
             {/* CONTENT LAYER */}
             <div className="relative z-10 w-full h-full flex flex-col p-12">
 
-                {/* 1. LOBBY / WAITING STATE */}
-                {gameState === 'lobby' && (
+                {/* 1. LOBBY / WAITING / ENTRY STATE */}
+                {(gameState === 'lobby' || gameState === 'entry') && (
                     <div className="flex-1 flex flex-col animate-in fade-in duration-1000">
                         <div className="flex justify-between items-start mb-12">
                             <div className="space-y-4">
@@ -72,8 +72,18 @@ export default function ProjectorPage() {
                             <div className="col-span-2 space-y-8">
                                 <div className="flex items-center gap-4">
                                     <Users className="w-10 h-10 text-blue-400" />
-                                    <h2 className="text-4xl font-black tracking-tight">{teamCount} Teams Ready</h2>
+                                    <h2 className="text-4xl font-black tracking-tight">
+                                        {teamCount > 0 ? `${teamCount} Teams Ready` : "Waiting for Teams..."}
+                                    </h2>
                                 </div>
+                                {teamCount === 0 && (
+                                    <div className="flex flex-col items-center justify-center h-[40vh] text-center space-y-4">
+                                        <div className="w-24 h-24 bg-white/5 rounded-full flex items-center justify-center animate-bounce">
+                                            <Users className="w-12 h-12 text-slate-500" />
+                                        </div>
+                                        <p className="text-2xl font-bold text-slate-500 italic">Host is preparing the quiz... Join now!</p>
+                                    </div>
+                                )}
                                 <div className="flex flex-wrap gap-4 content-start max-h-[50vh] overflow-hidden">
                                     <AnimatePresence>
                                         {visibleTeams.map((team, i) => (
@@ -136,17 +146,20 @@ export default function ProjectorPage() {
                             <div className="space-y-2 flex-1 mr-8">
                                 <p className="text-slate-500 font-black uppercase tracking-[0.3em] text-lg">Question {stepNumber}</p>
                                 <h1 className={cn(
-                                    "font-black tracking-tight leading-[1.1]",
-                                    (currentQuestionData?.text?.length || 0) > 100 ? "text-4xl" :
-                                        (currentQuestionData?.text?.length || 0) > 60 ? "text-5xl" : "text-6xl"
+                                    "font-black tracking-tight leading-[1.1] transition-all duration-500",
+                                    (currentQuestionData?.text?.length || 0) > 800 ? "text-xl" :
+                                        (currentQuestionData?.text?.length || 0) > 500 ? "text-2xl" :
+                                            (currentQuestionData?.text?.length || 0) > 300 ? "text-3xl" :
+                                                (currentQuestionData?.text?.length || 0) > 150 ? "text-4xl" :
+                                                    (currentQuestionData?.text?.length || 0) > 80 ? "text-5xl" : "text-6xl"
                                 )}>
                                     {currentQuestionData?.text || "Question Loading..."}
                                 </h1>
                             </div>
                             <div className="flex flex-col items-end gap-3 shrink-0">
-                                <div className="flex items-center gap-4 bg-white/5 backdrop-blur-2xl p-6 rounded-[2rem] border border-white/10 shadow-2xl">
-                                    <Timer className={cn("w-10 h-10", timeLeft < 7 ? "text-red-500 animate-pulse" : "text-blue-400")} />
-                                    <span className="text-6xl font-black tabular-nums">{timeLeft}s</span>
+                                <div className="flex items-center gap-4 bg-white/5 backdrop-blur-2xl p-4 rounded-[1.5rem] border border-white/10 shadow-2xl">
+                                    <Timer className={cn("w-8 h-8", timeLeft < 7 ? "text-red-500 animate-pulse" : "text-blue-400")} />
+                                    <span className="text-5xl font-black tabular-nums">{timeLeft}s</span>
                                 </div>
                                 <div className="flex items-center gap-3 bg-emerald-500/10 px-6 py-3 rounded-2xl border border-emerald-500/20">
                                     <Users className="w-6 h-6 text-emerald-500" />
@@ -166,11 +179,16 @@ export default function ProjectorPage() {
                                 ];
                                 return (
                                     <div key={i} className={cn(
-                                        "p-6 rounded-[1.5rem] border-2 flex items-center gap-4 transition-all duration-500",
+                                        "p-5 rounded-[1.2rem] border-2 flex items-center gap-4 transition-all duration-500",
                                         colors[i]
                                     )}>
-                                        <div className="w-12 h-12 shrink-0 rounded-xl bg-white/10 flex items-center justify-center text-2xl font-black">{letter}</div>
-                                        <div className="text-2xl font-bold truncate">{opt}</div>
+                                        <div className="w-10 h-10 shrink-0 rounded-lg bg-white/10 flex items-center justify-center text-xl font-black">{letter}</div>
+                                        <div className={cn(
+                                            "font-bold leading-tight",
+                                            opt.length > 80 ? "text-base" : opt.length > 50 ? "text-lg" : "text-2xl"
+                                        )}>
+                                            {opt}
+                                        </div>
                                     </div>
                                 );
                             })}
