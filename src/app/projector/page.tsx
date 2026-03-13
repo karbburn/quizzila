@@ -47,11 +47,8 @@ export default function ProjectorPage() {
                                 <div className="flex items-center gap-4 bg-white/5 backdrop-blur-xl p-6 rounded-3xl border border-white/10 shadow-2xl">
                                     <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center overflow-hidden border-2 border-yellow-500/20 shadow-xl">
                                         <img
-                                            src="/kb_logo.png"
+                                            src="/tqm_logo.jpg"
                                             alt="Logo"
-                                            onError={(e) => {
-                                                (e.target as HTMLImageElement).src = '/tqm_logo.jpg';
-                                            }}
                                             className="w-full h-full object-contain"
                                         />
                                     </div>
