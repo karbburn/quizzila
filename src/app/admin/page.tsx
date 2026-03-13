@@ -181,7 +181,7 @@ export default function AdminDashboard() {
 
     const handleAddQuestion = async () => {
         try {
-            await sessionService.addQuestion({ ...newQ, order_index: questions.length + 1 });
+            await sessionService.addQuestion({ ...newQ, order_index: questions.length });
             await loadQuestions();
             setShowAddModal(false);
             setNewQ({ text: "", options: ["", "", "", ""], correct_option: "A", order_index: 0 });
