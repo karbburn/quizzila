@@ -1,55 +1,67 @@
-# Quizzila 🚀
+<div align="center">
+  <h1>🎯 Quizzila</h1>
+  <p><strong>A professional, real-time interactive quiz platform for live events, auditoriums, and corporate training.</strong></p>
+</div>
 
-Quizzila is an ultra-premium, real-time quiz application designed for live events and auditoriums. Built with a focus on high-energy engagement and aesthetic excellence, it supports up to 120+ concurrent teams with low-latency synchronization.
+<br />
 
-## ✨ Features
+Quizzila is an ultra-premium, low-latency live quiz application built for high-stakes environments. Engineered to support **120+ concurrent teams** with sub-second synchronization, it offers a Mentimeter-style participant experience, real-time leaderboard rendering, and a robust administrative control center.
 
-- **💎 Ultra-Premium UI**: Immersive dark mode with glassmorphism, animated grids, and cinematic transitions.
-- **⚡ Synchronized Gameplay**: Real-time state management using Supabase, ensuring every participant is in sync with the host.
-- **🥇 Fastest Finger First (FFF)**: Dynamic scoring system where faster answers earn more points (Menti-style bonus).
-- **🛡️ Team Registration**: Built-in flow for team names and member management.
-- **🕹️ Admin Command Center**: robust dashboard for quiz control, live monitoring, and bulk question management.
-- **📥 Bulk Import**: Effortlessly populate your quiz by importing questions via JSON.
+## ✨ Key Features
 
-## 🛠️ Tech Stack
+- **⚡ Real-Time Synchronization**: Built on Supabase Realtime, guaranteeing that the host's control board and participant screens remain perfectly in sync under heavy concurrent load. 
+- **🖥️ Mentimeter-Style Flow**: Participants are locked from seeing the correct answer upon submission. Answers, live statistics, and rankings are revealed dynamically only when the host triggers them.
+- **🥇 Dynamic Leaderboard & FFF Scoring**: Fastest Finger First (FFF) scoring rewards quicker responses. Standings and rankings are intelligently pushed to all connected clients.
+- **🛡️ Secure Team Registration**: Built-in participant intake flow featuring duplicate name prevention, capacity limits, and automatic session persistence.
+- **🕹️ Admin Command Center**: A comprehensive dashboard featuring:
+  - **Live Monitoring**: Track team registrations and latency in real-time.
+  - **Shadow Leaderboard**: Preview standings before revealing them to the audience.
+  - **Question Management**: Full CRUD capabilities and bulk JSON import for quiz content.
+  - **Session Controls**: Granular control over quiz flow, answer reveals, and total session resets.
 
-- **Frontend**: [Next.js](https://nextjs.org/) (App Router), [React](https://reactjs.org/), [Tailwind CSS](https://tailwindcss.com/)
-- **Backend/Database**: [Supabase](https://supabase.com/) (PostgreSQL + Realtime)
-- **Animations**: [Framer Motion](https://www.framer.com/motion/), [Lucide React](https://lucide.dev/) (Icons)
-- **State Management**: Custom React Hooks with Supabase Subscriptions
+## 🛠️ Architecture & Tech Stack
 
-## 🚀 Getting Started
+This application is built using a modern, scalable stack designed for edge performance and immediate data delivery:
 
-### 1. Clone & Install
+- **Framework**: [Next.js](https://nextjs.org/) (App Router)
+- **Language**: [TypeScript](https://www.typescriptlang.org/)
+- **Styling & UI**: [Tailwind CSS](https://tailwindcss.com/), [Framer Motion](https://www.framer.com/motion/), [shadcn/ui](https://ui.shadcn.com/)
+- **Backend & Database**: [Supabase](https://supabase.com/) (PostgreSQL, Realtime Subscriptions, Row Level Security)
+- **Deployment**: Optimized for Vercel/Edge networks
+
+## 🚀 Quick Setup Guide
+
+### 1. Repository Initialization
+Clone the repository and install dependencies:
 ```bash
 git clone https://github.com/karbburn/quizzila.git
 cd quizzila
 npm install
 ```
 
-### 2. Configure Supabase
-Create a `.env.local` file with your credentials:
+### 2. Environment Configuration
+Create a `.env.local` file in the root directory and add your Supabase credentials:
 ```env
-NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+NEXT_PUBLIC_SUPABASE_URL=your_project_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
 ```
 
-### 3. Apply Schema
-Run the provided `supabase_schema.sql` in your Supabase SQL Editor to set up the necessary tables, enums, and RLS policies.
+### 3. Database Schema setup
+Navigate to your Supabase SQL Editor and execute the provided `supabase_schema.sql` file. This script automatically configures:
+- Tables (`questions`, `teams`, `answers`, `quiz_state`)
+- Enums (`quiz_status` including `answer_reveal` and `leaderboard`)
+- PostgREST RPC Functions for secure data fetching
+- Row Level Security (RLS) policies
 
-### 4. Run Development Server
+### 4. Development Server
+Start the development server:
 ```bash
 npm run dev
 ```
-
-## 📊 Database Schema
-
-The production-grade schema includes:
-- `questions`: Question text, options, and order.
-- `teams`: Team registration and scoring.
-- `answers`: Individual team submissions with time-stamped bonus points.
-- `quiz_state`: Synchronized global game state (waiting, countdown, active, etc.).
+The application will be available at `http://localhost:3000`. Access the admin controls natively via `/admin`.
 
 ---
 
-Created with ❤️ for high-stakes live events.
+<div align="center">
+  <i>Engineered for reliability, speed, and audience engagement.</i>
+</div>
