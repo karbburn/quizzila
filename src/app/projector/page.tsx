@@ -46,25 +46,25 @@ export default function ProjectorPage() {
                             <div className="space-y-4">
                                 <div className="flex items-center gap-4 bg-white/5 backdrop-blur-xl p-6 rounded-3xl border border-white/10 shadow-2xl">
                                     <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center overflow-hidden border-2 border-yellow-500/20 shadow-xl">
-                                        <img src="/tqm_logo.jpg" alt="TQM" className="w-full h-full object-contain" />
+                                        <img src="/kb_logo.png" alt="Karbburn" className="w-full h-full object-contain" />
                                     </div>
                                     <div>
-                                        <h1 className="text-4xl font-black uppercase tracking-tighter">Quizzila</h1>
-                                        <p className="text-sm uppercase tracking-[0.3em] text-orange-400 font-bold">Live Trivia Experience</p>
+                                        <h1 className="text-4xl font-black uppercase tracking-tighter">Karbburn Quiz</h1>
+                                        <p className="text-sm uppercase tracking-[0.3em] text-orange-400 font-bold">Live Quiz Experience</p>
                                     </div>
                                 </div>
                             </div>
 
                             <div className="bg-white/5 backdrop-blur-xl p-8 rounded-3xl border border-white/10 shadow-2xl text-right space-y-2">
                                 <p className="text-slate-400 font-bold uppercase tracking-widest text-sm">Join the game at</p>
-                                <p className="text-5xl font-black text-yellow-500 tracking-tight">quizzila-app.vercel.app</p>
+                                <p className="text-5xl font-black text-yellow-500 tracking-tight">karbburn-quiz.vercel.app</p>
                             </div>
                         </div>
 
                         <div className="flex-1 grid grid-cols-3 gap-12">
                             {/* QR CODE SECTION */}
-                            <div className="col-span-1 bg-white p-8 rounded-[3rem] aspect-square flex flex-col items-center justify-center shadow-[0_0_100px_rgba(234,179,8,0.2)]">
-                                <QrCode className="w-full h-full text-slate-900" strokeWidth={1} />
+                            <div className="col-span-1 bg-white p-8 rounded-[3rem] aspect-square flex flex-col items-center justify-center shadow-[0_0_100px_rgba(234,179,8,0.2)] overflow-hidden">
+                                <img src="/qr_code.png" alt="Scan to Join" className="w-full h-full object-contain" />
                                 <p className="mt-4 text-slate-900 font-black text-xl uppercase">Scan to Join</p>
                             </div>
 
