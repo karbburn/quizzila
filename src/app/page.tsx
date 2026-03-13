@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { InteractiveHoverButton } from "@/components/ui/interactive-hover-button";
-import { Check, X, Trophy, Timer, BrainCircuit, ShieldCheck, ShieldAlert, Users, Sparkles, AlertCircle, Activity } from "lucide-react";
+import { Check, X, Trophy, Timer, BrainCircuit, ShieldCheck, ShieldAlert, Users, Sparkles, AlertCircle, Activity, Lock } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { initialQuestions, type Question } from "@/data/questions";
@@ -128,7 +128,7 @@ export default function QuizzilaLive() {
   }, [currentQue, team, gameState, currentQuestionData]);
 
   const handleOptionClick = async (option: string) => {
-    if (selectedOption || gameState !== "quiz") return;
+    if (selectedOption || gameState !== "quiz" || quizStatus !== 'question_active') return;
     setSelectedOption(option);
 
     const startTime = performance.now();
@@ -432,6 +432,14 @@ export default function QuizzilaLive() {
                   <div className="absolute top-0 left-0 p-2 opacity-30">
                     <span className="text-[8px] font-bold tracking-widest uppercase text-blue-400">Live Sync</span>
                   </div>
+                  <div className="absolute top-0 right-0 p-2">
+                    <span className={cn(
+                      "text-[8px] font-bold tracking-widest uppercase px-2 py-0.5 rounded-full border",
+                      quizStatus === 'question_locked' ? "bg-red-500/10 text-red-400 border-red-500/20" : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                    )}>
+                      {quizStatus === 'question_locked' ? "Locked" : "Active"}
+                    </span>
+                  </div>
                   <div className="absolute bottom-0 left-0 h-1 bg-gradient-to-r from-blue-500 to-purple-500 transition-all duration-1000" style={{ width: `${(timeLeft / 30) * 100}%` }} />
                   <div>
                     <span className="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-1 block">Phase</span>
@@ -450,8 +458,18 @@ export default function QuizzilaLive() {
                     </div>
                   </div>
                 </header>
-                <div className="bg-card backdrop-blur-xl border border-border p-10 rounded-[2.5rem] shadow-2xl space-y-8">
+                <div className="bg-card backdrop-blur-xl border border-border p-10 rounded-[2.5rem] shadow-2xl space-y-8 relative overflow-hidden">
                   <h2 className="text-2xl font-bold leading-tight">{currentQuestionData?.text || "Loading question..."}</h2>
+
+                  {quizStatus === 'question_locked' && !selectedOption && (
+                    <div className="absolute inset-0 z-20 bg-black/60 backdrop-blur-sm flex items-center justify-center animate-in fade-in duration-300">
+                      <div className="text-center space-y-3">
+                        <Lock className="w-12 h-12 text-red-500 mx-auto animate-pulse" />
+                        <h3 className="text-2xl font-black uppercase text-white tracking-tight">Time's Up!</h3>
+                        <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">Submissions have been locked</p>
+                      </div>
+                    </div>
+                  )}
 
                   {selectedOption ? (
                     <div className="flex flex-col items-center justify-center py-12 space-y-6 animate-in zoom-in duration-500">

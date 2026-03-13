@@ -184,6 +184,15 @@ export const sessionService = {
     },
 
     /**
+     * Lock submissions for the current question
+     */
+    async lockAnswers() {
+        return this.updateQuizState({
+            status: 'question_locked'
+        });
+    },
+
+    /**
      * Show the leaderboard
      */
     async showLeaderboard() {

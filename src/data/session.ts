@@ -1,4 +1,4 @@
-export type QuizStatus = 'waiting' | 'countdown' | 'question_active' | 'answer_reveal' | 'leaderboard' | 'finished';
+export type QuizStatus = 'waiting' | 'countdown' | 'question_active' | 'question_locked' | 'answer_reveal' | 'leaderboard' | 'finished';
 
 export interface QuizState {
     id: number;

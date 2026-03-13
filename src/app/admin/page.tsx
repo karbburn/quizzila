@@ -86,8 +86,22 @@ export default function AdminDashboard() {
             setTeamCount(prev => prev + 1);
             loadTeams();
         });
-        const answerSub = sessionService.subscribeToAnswers(() => {
-            setAnswerStats(prev => ({ ...prev, total: prev.total + 1 }));
+        const answerSub = sessionService.subscribeToAnswers(async () => {
+            // Re-fetch stats to get accurate data
+            if (quizState?.status === 'question_active' && questions.length > 0) {
+                const q = questions[quizState.current_question];
+                if (q) {
+                    const stats = await sessionService.getAnswerStats(q.id);
+                    setAnswerStats(stats);
+
+                    // Automatic locking when all teams have answered
+                    // We check if stats.total >= teamCount (teamCount is fetched in init/teamSub)
+                    // Added a delay or refetch of teamCount might be safer but this is reactive
+                    if (stats.total > 0 && teamCount > 0 && stats.total >= teamCount) {
+                        sessionService.lockAnswers();
+                    }
+                }
+            }
         });
 
         return () => { stateSub.unsubscribe(); teamSub.unsubscribe(); answerSub.unsubscribe(); };
@@ -142,7 +156,7 @@ export default function AdminDashboard() {
         setAnswersLocked(true);
     };
     const handleSkip = () => handleNextQuestion();
-    const handleLockAnswers = () => setAnswersLocked(true);
+    const handleLockAnswers = () => sessionService.lockAnswers();
     const handleEndQuiz = () => {
         setConfirmAction({
             message: "This will END the quiz for all participants.",
@@ -206,9 +220,10 @@ export default function AdminDashboard() {
         waiting: "bg-yellow-500",
         countdown: "bg-blue-500",
         question_active: "bg-emerald-500",
+        question_locked: "bg-red-500",
         answer_reveal: "bg-orange-500",
         leaderboard: "bg-purple-500",
-        finished: "bg-red-500"
+        finished: "bg-gray-500"
     };
 
     return (
@@ -329,16 +344,21 @@ export default function AdminDashboard() {
                             <button onClick={handleShowLeaderboard} className="px-4 py-2.5 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded-lg font-bold uppercase text-[10px] tracking-wider transition-all active:scale-95">Show Leaderboard</button>
                             <button onClick={handleRevealAnswer} className="px-4 py-2.5 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded-lg font-bold uppercase text-[10px] tracking-wider transition-all active:scale-95">Reveal Answer</button>
                             <button onClick={handleSkip} className="px-4 py-2.5 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded-lg font-bold uppercase text-[10px] tracking-wider transition-all active:scale-95">Skip Question</button>
-                            <button onClick={handleLockAnswers} className="px-4 py-2.5 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded-lg font-bold uppercase text-[10px] tracking-wider transition-all active:scale-95 flex items-center gap-1.5">
+                            <button
+                                onClick={handleLockAnswers}
+                                disabled={quizState?.status !== 'question_active'}
+                                className="px-4 py-2.5 bg-red-900/40 hover:bg-red-900/60 disabled:opacity-30 disabled:cursor-not-allowed border border-red-500/30 rounded-lg font-bold uppercase text-[10px] tracking-wider transition-all active:scale-95 flex items-center gap-1.5 text-red-100"
+                            >
                                 <Lock className="w-3 h-3" /> Lock Answers
                             </button>
                             {/* Status Indicators */}
                             <div className="ml-auto flex items-center gap-3 bg-slate-800/50 px-4 py-2 rounded-lg border border-slate-700">
                                 <span className="flex items-center gap-1.5 text-[10px]"><span className={cn("w-2 h-2 rounded-full", quizState?.status === 'waiting' ? "bg-yellow-500" : "bg-slate-600")} /> Waiting</span>
                                 <span className="flex items-center gap-1.5 text-[10px]"><span className={cn("w-2 h-2 rounded-full", quizState?.status === 'question_active' ? "bg-emerald-500" : "bg-slate-600")} /> Active</span>
+                                <span className="flex items-center gap-1.5 text-[10px]"><span className={cn("w-2 h-2 rounded-full", quizState?.status === 'question_locked' ? "bg-red-500" : "bg-slate-600")} /> Locked</span>
                                 <span className="flex items-center gap-1.5 text-[10px]"><span className={cn("w-2 h-2 rounded-full", quizState?.status === 'answer_reveal' ? "bg-orange-500" : "bg-slate-600")} /> Reveal</span>
                                 <span className="flex items-center gap-1.5 text-[10px]"><span className={cn("w-2 h-2 rounded-full", quizState?.status === 'leaderboard' ? "bg-purple-500" : "bg-slate-600")} /> Leaderboard</span>
-                                <span className="flex items-center gap-1.5 text-[10px]"><span className={cn("w-2 h-2 rounded-full", quizState?.status === 'finished' ? "bg-red-500" : "bg-slate-600")} /> Finished</span>
+                                <span className="flex items-center gap-1.5 text-[10px]"><span className={cn("w-2 h-2 rounded-full", quizState?.status === 'finished' ? "bg-gray-500" : "bg-slate-600")} /> Finished</span>
                             </div>
                         </div>
 
@@ -385,6 +405,42 @@ export default function AdminDashboard() {
 
                             {/* Right: Live Stats + Leaderboard */}
                             <div className="space-y-4">
+                                {/* Answer Progress Tracker */}
+                                <div className="bg-card border border-slate-700 rounded-lg p-5 space-y-4">
+                                    <div className="flex justify-between items-end">
+                                        <div className="space-y-1">
+                                            <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Answer Tracker</p>
+                                            <p className="text-xl font-black text-white tabular-nums">
+                                                {answerStats.total} <span className="text-slate-500 text-sm font-bold">/ {teamCount}</span>
+                                            </p>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Status</p>
+                                            <p className={cn(
+                                                "text-xs font-black uppercase",
+                                                answerStats.total >= teamCount ? "text-emerald-400" : "text-yellow-500"
+                                            )}>
+                                                {answerStats.total >= teamCount ? "All Answered" : "Awaiting Answers"}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <div className="relative h-6 bg-slate-800 rounded-lg overflow-hidden border border-slate-700 p-1">
+                                        <div className="absolute inset-y-1 left-1 bg-gradient-to-r from-blue-600 to-emerald-500 rounded-md transition-all duration-1000 flex items-center justify-center overflow-hidden"
+                                            style={{ width: `calc(${teamCount > 0 ? (answerStats.total / teamCount) * 100 : 0}% - 8px)` }}>
+                                            {(answerStats.total / (teamCount || 1)) > 0.1 && (
+                                                <span className="text-[8px] font-black text-white uppercase whitespace-nowrap">
+                                                    {'█'.repeat(Math.ceil((answerStats.total / (teamCount || 1)) * 20))}
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest text-center italic">
+                                        {quizState?.status === 'question_locked' ? "Submissions Locked" : "Real-time subscription active"}
+                                    </p>
+                                </div>
+
                                 {/* Live Response Statistics */}
                                 <div className="bg-card border border-slate-700 rounded-lg p-5 space-y-3">
                                     <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Live Response Statistics</p>
