@@ -131,16 +131,22 @@ export default function ProjectorPage() {
 
                 {/* 3. ACTIVE QUIZ STATE */}
                 {gameState === 'quiz' && (
-                    <div className="flex-1 flex flex-col animate-in fade-in duration-500">
-                        <header className="flex justify-between items-end mb-16">
-                            <div className="space-y-2">
-                                <p className="text-slate-500 font-black uppercase tracking-[0.3em] text-xl">Question {stepNumber}</p>
-                                <h1 className="text-7xl font-black max-w-5xl leading-[1.1] tracking-tight">{currentQuestionData?.text || "Question Loading..."}</h1>
+                    <div className="flex-1 flex flex-col min-h-0 animate-in fade-in duration-500">
+                        <header className="flex justify-between items-start mb-8 shrink-0">
+                            <div className="space-y-2 flex-1 mr-8">
+                                <p className="text-slate-500 font-black uppercase tracking-[0.3em] text-lg">Question {stepNumber}</p>
+                                <h1 className={cn(
+                                    "font-black tracking-tight leading-[1.1]",
+                                    (currentQuestionData?.text?.length || 0) > 100 ? "text-4xl" :
+                                        (currentQuestionData?.text?.length || 0) > 60 ? "text-5xl" : "text-6xl"
+                                )}>
+                                    {currentQuestionData?.text || "Question Loading..."}
+                                </h1>
                             </div>
-                            <div className="flex flex-col items-end gap-4 min-w-[300px]">
-                                <div className="flex items-center gap-6 bg-white/5 backdrop-blur-2xl p-8 rounded-[2.5rem] border border-white/10 shadow-2xl">
-                                    <Timer className={cn("w-16 h-16", timeLeft < 7 ? "text-red-500 animate-pulse" : "text-blue-400")} />
-                                    <span className="text-8xl font-black tabular-nums">{timeLeft}s</span>
+                            <div className="flex flex-col items-end gap-3 shrink-0">
+                                <div className="flex items-center gap-4 bg-white/5 backdrop-blur-2xl p-6 rounded-[2rem] border border-white/10 shadow-2xl">
+                                    <Timer className={cn("w-10 h-10", timeLeft < 7 ? "text-red-500 animate-pulse" : "text-blue-400")} />
+                                    <span className="text-6xl font-black tabular-nums">{timeLeft}s</span>
                                 </div>
                                 <div className="flex items-center gap-3 bg-emerald-500/10 px-6 py-3 rounded-2xl border border-emerald-500/20">
                                     <Users className="w-6 h-6 text-emerald-500" />
@@ -149,7 +155,7 @@ export default function ProjectorPage() {
                             </div>
                         </header>
 
-                        <div className="grid grid-cols-2 gap-8 flex-1 content-start">
+                        <div className="grid grid-cols-2 gap-4 flex-1 min-h-0 overflow-hidden">
                             {(currentQuestionData?.options || []).map((opt: string, i: number) => {
                                 const letter = ['A', 'B', 'C', 'D'][i];
                                 const colors = [
@@ -159,9 +165,12 @@ export default function ProjectorPage() {
                                     "border-emerald-500/30 bg-emerald-500/5 text-emerald-100"
                                 ];
                                 return (
-                                    <div key={i} className={cn("p-8 rounded-[2rem] border-2 flex items-center gap-6 transition-all duration-500", colors[i])}>
-                                        <div className="w-16 h-16 rounded-2xl bg-white/10 flex items-center justify-center text-4xl font-black">{letter}</div>
-                                        <div className="text-4xl font-bold">{opt}</div>
+                                    <div key={i} className={cn(
+                                        "p-6 rounded-[1.5rem] border-2 flex items-center gap-4 transition-all duration-500",
+                                        colors[i]
+                                    )}>
+                                        <div className="w-12 h-12 shrink-0 rounded-xl bg-white/10 flex items-center justify-center text-2xl font-black">{letter}</div>
+                                        <div className="text-2xl font-bold truncate">{opt}</div>
                                     </div>
                                 );
                             })}
@@ -172,14 +181,14 @@ export default function ProjectorPage() {
                 {/* 4. REVEAL / STATS STATE */}
                 {gameState === 'reveal' && (
                     <div className="flex-1 flex flex-col animate-in slide-in-from-bottom duration-700">
-                        <div className="text-center mb-16 space-y-4">
-                            <h2 className="text-2xl font-black uppercase tracking-[0.4em] text-slate-500">Correct Answer is</h2>
+                        <div className="text-center mb-8 space-y-2 shrink-0">
+                            <h2 className="text-xl font-black uppercase tracking-[0.4em] text-slate-500">Correct Answer is</h2>
                             <motion.div
                                 initial={{ scale: 0.9 }}
                                 animate={{ scale: 1 }}
-                                className="bg-emerald-500 text-slate-900 px-12 py-6 rounded-[2rem] inline-block shadow-[0_0_80px_rgba(16,185,129,0.4)]"
+                                className="bg-emerald-500 text-slate-900 px-12 py-4 rounded-[1.5rem] inline-block shadow-[0_0_80px_rgba(16,185,129,0.4)]"
                             >
-                                <span className="text-6xl font-black tracking-tight">{currentQuestionData?.correct_option}: {currentQuestionData?.options[['A', 'B', 'C', 'D'].indexOf(currentQuestionData?.correct_option)]}</span>
+                                <span className="text-4xl font-black tracking-tight">{currentQuestionData?.correct_option}: {currentQuestionData?.options[['A', 'B', 'C', 'D'].indexOf(currentQuestionData?.correct_option)]}</span>
                             </motion.div>
                         </div>
 
