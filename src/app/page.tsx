@@ -10,6 +10,7 @@ import { ToggleTheme } from "@/components/ui/toggle-theme";
 import { TheInfiniteGrid } from "@/components/ui/the-infinite-grid";
 import { useGameSession } from "@/hooks/useGameSession";
 import { sessionService } from "@/services/sessionService";
+import { sanitizeRegistration, validateRegistration, sanitizeTeamName, sanitizeMemberName } from "@/lib/sanitize";
 
 export default function QuizzilaLive() {
   const {
@@ -33,6 +34,7 @@ export default function QuizzilaLive() {
   const [team, setTeam] = useState<{ id: string, name: string } | null>(null);
   const [leaderboard, setLeaderboard] = useState<{ team_name: string; score: number; rank: number }[]>([]);
   const [regData, setRegData] = useState({ teamName: '', member1: '', member2: '', member3: '', member4: '' });
+  const [regErrors, setRegErrors] = useState<{ teamName?: string; member1?: string }>({});
   const [isRegistering, setIsRegistering] = useState(false);
   const [nameTaken, setNameTaken] = useState(false);
   const [showWelcome, setShowWelcome] = useState(false);
@@ -83,18 +85,30 @@ export default function QuizzilaLive() {
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!regData.teamName.trim() || !regData.member1.trim() || nameTaken) return;
+
+    // Validate inputs
+    const errors = validateRegistration(regData);
+    if (Object.keys(errors).length > 0) {
+      setRegErrors(errors);
+      return;
+    }
+    setRegErrors({});
+
+    if (nameTaken) return;
     if (quizStatus !== 'waiting') return; // Lock if quiz started
 
     setIsRegistering(true);
     const device_id = 'dev_' + Math.random().toString(36).substr(2, 9);
 
+    // Sanitize inputs before sending
+    const sanitized = sanitizeRegistration(regData);
+
     const newTeam = await sessionService.registerTeam({
-      team_name: regData.teamName.trim(),
-      member1: regData.member1.trim(),
-      member2: regData.member2.trim() || undefined,
-      member3: regData.member3.trim() || undefined,
-      member4: regData.member4.trim() || undefined,
+      team_name: sanitized.team_name,
+      member1: sanitized.member1,
+      member2: sanitized.member2 || undefined,
+      member3: sanitized.member3 || undefined,
+      member4: sanitized.member4 || undefined,
       device_id
     });
 
@@ -291,15 +305,19 @@ export default function QuizzilaLive() {
                               maxLength={30}
                               className={cn(
                                 "w-full bg-background border px-4 py-3 rounded-xl focus:border-yellow-500 outline-none transition-all font-bold text-sm",
-                                nameTaken || regData.teamName.length > 25 ? "border-red-500/50" : "border-border"
+                                nameTaken || regErrors.teamName || regData.teamName.length > 25 ? "border-red-500/50" : "border-border"
                               )}
                               placeholder="Coolest Team Ever"
                               value={regData.teamName}
-                              onChange={e => setRegData({ ...regData, teamName: e.target.value })}
+                              onChange={e => {
+                                const value = sanitizeTeamName(e.target.value);
+                                setRegData({ ...regData, teamName: value });
+                                if (regErrors.teamName) setRegErrors({ ...regErrors, teamName: undefined });
+                              }}
                             />
-                            {nameTaken && (
+                            {(nameTaken || regErrors.teamName) && (
                               <p className="text-[10px] text-red-400 font-bold mt-1 ml-1 flex items-center gap-1 animate-in fade-in slide-in-from-left-2">
-                                <ShieldAlert className="w-3 h-3" /> ⚠ Team name already taken
+                                <ShieldAlert className="w-3 h-3" /> {regErrors.teamName || 'Team name already taken'}
                               </p>
                             )}
                           </div>
@@ -307,11 +325,23 @@ export default function QuizzilaLive() {
                             <label className="text-[10px] font-black uppercase tracking-wider ml-1">Member 1 (Lead)</label>
                             <input
                               required
-                              className="w-full bg-background border border-border px-4 py-3 rounded-xl focus:border-yellow-500 outline-none transition-all text-sm"
+                              className={cn(
+                                "w-full bg-background border px-4 py-3 rounded-xl focus:border-yellow-500 outline-none transition-all text-sm",
+                                regErrors.member1 ? "border-red-500/50" : "border-border"
+                              )}
                               placeholder="Your Name"
                               value={regData.member1}
-                              onChange={e => setRegData({ ...regData, member1: e.target.value })}
+                              onChange={e => {
+                                const value = sanitizeMemberName(e.target.value);
+                                setRegData({ ...regData, member1: value });
+                                if (regErrors.member1) setRegErrors({ ...regErrors, member1: undefined });
+                              }}
                             />
+                            {regErrors.member1 && (
+                              <p className="text-[10px] text-red-400 font-bold mt-1 ml-1 flex items-center gap-1 animate-in fade-in slide-in-from-left-2">
+                                <ShieldAlert className="w-3 h-3" /> {regErrors.member1}
+                              </p>
+                            )}
                           </div>
 
                           <div className="space-y-1.5 pt-4">
@@ -321,9 +351,9 @@ export default function QuizzilaLive() {
                               <span className="h-px bg-border/50 flex-1" />
                             </label>
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                              <input className="bg-background border border-border px-3 py-2 rounded-lg text-xs" placeholder="Member 2" value={regData.member2} onChange={e => setRegData({ ...regData, member2: e.target.value })} />
-                              <input className="bg-background border border-border px-3 py-2 rounded-lg text-xs" placeholder="Member 3" value={regData.member3} onChange={e => setRegData({ ...regData, member3: e.target.value })} />
-                              <input className="bg-background border border-border px-3 py-2 rounded-lg text-xs" placeholder="Member 4" value={regData.member4} onChange={e => setRegData({ ...regData, member4: e.target.value })} />
+                              <input className="bg-background border border-border px-3 py-2 rounded-lg text-xs" placeholder="Member 2" value={regData.member2} onChange={e => setRegData({ ...regData, member2: sanitizeMemberName(e.target.value) })} />
+                              <input className="bg-background border border-border px-3 py-2 rounded-lg text-xs" placeholder="Member 3" value={regData.member3} onChange={e => setRegData({ ...regData, member3: sanitizeMemberName(e.target.value) })} />
+                              <input className="bg-background border border-border px-3 py-2 rounded-lg text-xs" placeholder="Member 4" value={regData.member4} onChange={e => setRegData({ ...regData, member4: sanitizeMemberName(e.target.value) })} />
                             </div>
                           </div>
                         </div>

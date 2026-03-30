@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import { type QuizState, type Team, type Answer, type QuizStatus } from "@/data/session";
+import { sanitizeTeamName, sanitizeMemberName, sanitizeQuestionText, sanitizeOptionText } from "@/lib/sanitize";
 
 export const STATE_ID = 1;
 
@@ -75,9 +76,18 @@ export const sessionService = {
      * Team Management: Register a new team
      */
     async registerTeam(teamData: Omit<Team, 'id' | 'score' | 'created_at'>): Promise<Team | null> {
+        const sanitizedData = {
+            ...teamData,
+            team_name: sanitizeTeamName(teamData.team_name),
+            member1: sanitizeMemberName(teamData.member1),
+            member2: teamData.member2 ? sanitizeMemberName(teamData.member2) : teamData.member2,
+            member3: teamData.member3 ? sanitizeMemberName(teamData.member3) : teamData.member3,
+            member4: teamData.member4 ? sanitizeMemberName(teamData.member4) : teamData.member4,
+        };
+
         const { data, error } = await supabase
             .from('teams')
-            .insert([teamData])
+            .insert([sanitizedData])
             .select()
             .single();
 
@@ -252,9 +262,11 @@ export const sessionService = {
 
             return {
                 order_index: i,
-                text: q.question,
+                text: sanitizeQuestionText(String(q.question || '')),
                 correct_option: finalAns,
-                options: q.options
+                options: Array.isArray(q.options)
+                    ? q.options.map((opt: any) => sanitizeOptionText(String(opt)))
+                    : []
             };
         });
 
@@ -390,7 +402,13 @@ export const sessionService = {
      * Add a single question
      */
     async addQuestion(q: { text: string; options: string[]; correct_option: string; order_index: number }) {
-        const { error } = await supabase.from('questions').insert([q]);
+        const sanitized = {
+            text: sanitizeQuestionText(q.text),
+            options: q.options.map(opt => sanitizeOptionText(opt)),
+            correct_option: q.correct_option,
+            order_index: q.order_index,
+        };
+        const { error } = await supabase.from('questions').insert([sanitized]);
         if (error) throw error;
     },
 
@@ -398,7 +416,13 @@ export const sessionService = {
      * Update a question
      */
     async updateQuestion(id: string, updates: Partial<{ text: string; options: string[]; correct_option: string; order_index: number }>) {
-        const { error } = await supabase.from('questions').update(updates).eq('id', id);
+        const sanitized: Partial<{ text: string; options: string[]; correct_option: string; order_index: number }> = {};
+        if (updates.text !== undefined) sanitized.text = sanitizeQuestionText(updates.text);
+        if (updates.options !== undefined) sanitized.options = updates.options.map(opt => sanitizeOptionText(opt));
+        if (updates.correct_option !== undefined) sanitized.correct_option = updates.correct_option;
+        if (updates.order_index !== undefined) sanitized.order_index = updates.order_index;
+
+        const { error } = await supabase.from('questions').update(sanitized).eq('id', id);
         if (error) throw error;
     },
 

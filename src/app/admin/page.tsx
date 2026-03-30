@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { ToggleTheme } from "@/components/ui/toggle-theme";
 import { sessionService } from "@/services/sessionService";
 import { supabase } from "@/lib/supabase";
+import { sanitizeQuestionText, sanitizeOptionText, validateQuestionText, validateOptionText } from "@/lib/sanitize";
 
 type AdminTab = "control" | "questions" | "settings";
 
@@ -40,8 +41,10 @@ export default function AdminDashboard() {
     const [editingQ, setEditingQ] = useState<any | null>(null);
     const [showAddModal, setShowAddModal] = useState(false);
     const [newQ, setNewQ] = useState({ text: "", options: ["", "", "", ""], correct_option: "A", order_index: 0 });
+    const [newQErrors, setNewQErrors] = useState<{ text?: string; options?: (string | undefined)[] }>({});
     const [showInlineAdd, setShowInlineAdd] = useState(false);
     const [inlineQ, setInlineQ] = useState({ text: "", options: ["", "", "", ""], correct_option: "A" });
+    const [inlineQErrors, setInlineQErrors] = useState<{ text?: string; options?: (string | undefined)[] }>({});
     const [savingAll, setSavingAll] = useState(false);
 
     // Confirmation dialog
@@ -178,8 +181,26 @@ export default function AdminDashboard() {
         try {
             const parsed = JSON.parse(importText);
             if (!Array.isArray(parsed)) throw new Error("Must be a JSON array");
-            await sessionService.bulkImportQuestions(parsed);
-            setImportStatus({ type: 'success', message: `Imported ${parsed.length} questions!` });
+
+            // Validate and sanitize each question before importing
+            const sanitized = parsed.map((q: any) => ({
+                ...q,
+                question: q.question ? sanitizeQuestionText(String(q.question)) : '',
+                options: Array.isArray(q.options) ? q.options.map((o: any) => sanitizeOptionText(String(o))) : [],
+            }));
+
+            // Validate required fields
+            for (let i = 0; i < sanitized.length; i++) {
+                const q = sanitized[i];
+                if (!q.question) throw new Error(`Question ${i + 1}: text is required`);
+                if (q.options.length < 2) throw new Error(`Question ${i + 1}: at least 2 options required`);
+                for (let j = 0; j < q.options.length; j++) {
+                    if (!q.options[j]) throw new Error(`Question ${i + 1}, Option ${j + 1}: text is required`);
+                }
+            }
+
+            await sessionService.bulkImportQuestions(sanitized);
+            setImportStatus({ type: 'success', message: `Imported ${sanitized.length} questions!` });
             setImportText("");
             await loadQuestions();
             setTimeout(() => setImportStatus(null), 3000);
@@ -196,11 +217,35 @@ export default function AdminDashboard() {
     };
 
     const handleSaveQuestion = async () => {
+        // Validate question text
+        const textError = validateQuestionText(newQ.text);
+        const optionErrors: string[] = [];
+        newQ.options.forEach((opt, i) => {
+            const err = validateOptionText(opt);
+            optionErrors.push(err || '');
+        });
+
+        if (textError || optionErrors.some(e => e !== '')) {
+            setNewQErrors({
+                text: textError || undefined,
+                options: optionErrors.map(e => e === '' ? undefined : e),
+            });
+            return;
+        }
+        setNewQErrors({});
+
         try {
+            const sanitizedData = {
+                text: sanitizeQuestionText(newQ.text),
+                options: newQ.options.map(opt => sanitizeOptionText(opt)),
+                correct_option: newQ.correct_option,
+                order_index: newQ.order_index,
+            };
+
             if (editingQ) {
-                await sessionService.updateQuestion(editingQ, newQ);
+                await sessionService.updateQuestion(editingQ, sanitizedData);
             } else {
-                await sessionService.addQuestion({ ...newQ, order_index: questions.length });
+                await sessionService.addQuestion({ ...sanitizedData, order_index: questions.length });
             }
             await loadQuestions();
             setShowAddModal(false);
@@ -250,13 +295,27 @@ export default function AdminDashboard() {
                         <div className="space-y-3">
                             <div>
                                 <label className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Question Text</label>
-                                <input value={newQ.text} onChange={e => setNewQ({ ...newQ, text: e.target.value })} className="w-full bg-background border border-slate-600 px-3 py-2 rounded-lg mt-1 focus:border-blue-500 outline-none" />
+                                <input value={newQ.text} onChange={e => {
+                                    setNewQ({ ...newQ, text: sanitizeQuestionText(e.target.value) });
+                                    if (newQErrors.text) setNewQErrors({ ...newQErrors, text: undefined });
+                                }} className="w-full bg-background border border-slate-600 px-3 py-2 rounded-lg mt-1 focus:border-blue-500 outline-none" />
+                                {newQErrors.text && <p className="text-[10px] text-red-400 font-bold mt-1">{newQErrors.text}</p>}
                             </div>
                             <div className="grid grid-cols-2 gap-2">
                                 {['A', 'B', 'C', 'D'].map((opt, i) => (
                                     <div key={opt}>
                                         <label className="text-[10px] uppercase font-bold text-slate-500">Option {opt}</label>
-                                        <input value={newQ.options[i]} onChange={e => { const o = [...newQ.options]; o[i] = e.target.value; setNewQ({ ...newQ, options: o }); }} className="w-full bg-background border border-slate-600 px-3 py-2 rounded-lg mt-1 focus:border-blue-500 outline-none" />
+                                        <input value={newQ.options[i]} onChange={e => {
+                                            const o = [...newQ.options];
+                                            o[i] = sanitizeOptionText(e.target.value);
+                                            setNewQ({ ...newQ, options: o });
+                                            if (newQErrors.options) {
+                                                const newOpts = [...newQErrors.options];
+                                                newOpts[i] = undefined;
+                                                setNewQErrors({ ...newQErrors, options: newOpts });
+                                            }
+                                        }} className="w-full bg-background border border-slate-600 px-3 py-2 rounded-lg mt-1 focus:border-blue-500 outline-none" />
+                                        {newQErrors.options?.[i] && <p className="text-[9px] text-red-400 font-bold mt-1">{newQErrors.options[i]}</p>}
                                     </div>
                                 ))}
                             </div>
@@ -590,11 +649,20 @@ export default function AdminDashboard() {
                                         <div className="px-4 py-3 bg-emerald-900/10 border-t border-emerald-500/20 space-y-3">
                                             <div className="flex items-center gap-2">
                                                 <Plus className="w-4 h-4 text-emerald-400 shrink-0" />
-                                                <input value={inlineQ.text} onChange={e => setInlineQ({ ...inlineQ, text: e.target.value })} placeholder="Type question text..." className="flex-1 bg-background border border-slate-600 px-3 py-2 rounded-lg text-xs focus:border-emerald-500 outline-none" />
+                                                <input value={inlineQ.text} onChange={e => {
+                                                    setInlineQ({ ...inlineQ, text: sanitizeQuestionText(e.target.value) });
+                                                    if (inlineQErrors.text) setInlineQErrors({ ...inlineQErrors, text: undefined });
+                                                }} placeholder="Type question text..." className="flex-1 bg-background border border-slate-600 px-3 py-2 rounded-lg text-xs focus:border-emerald-500 outline-none" />
                                             </div>
+                                            {inlineQErrors.text && <p className="text-[9px] text-red-400 font-bold">{inlineQErrors.text}</p>}
+                                            {inlineQErrors.options?.some(o => o) && <p className="text-[9px] text-red-400 font-bold">Please fill all options</p>}
                                             <div className="grid grid-cols-4 gap-2">
                                                 {['A', 'B', 'C', 'D'].map((opt, i) => (
-                                                    <input key={opt} value={inlineQ.options[i]} onChange={e => { const o = [...inlineQ.options]; o[i] = e.target.value; setInlineQ({ ...inlineQ, options: o }); }} placeholder={`Option ${opt}`} className="bg-background border border-slate-600 px-3 py-2 rounded-lg text-xs focus:border-emerald-500 outline-none" />
+                                                    <input key={opt} value={inlineQ.options[i]} onChange={e => {
+                                                        const o = [...inlineQ.options];
+                                                        o[i] = sanitizeOptionText(e.target.value);
+                                                        setInlineQ({ ...inlineQ, options: o });
+                                                    }} placeholder={`Option ${opt}`} className="bg-background border border-slate-600 px-3 py-2 rounded-lg text-xs focus:border-emerald-500 outline-none" />
                                                 ))}
                                             </div>
                                             <div className="flex items-center gap-3">
@@ -603,8 +671,26 @@ export default function AdminDashboard() {
                                                     <button key={opt} onClick={() => setInlineQ({ ...inlineQ, correct_option: opt })} className={cn("w-8 py-1 rounded text-xs font-bold transition-all", inlineQ.correct_option === opt ? "bg-emerald-600 text-white" : "bg-slate-700 text-slate-400 hover:bg-slate-600")}>{opt}</button>
                                                 ))}
                                                 <button onClick={async () => {
-                                                    if (!inlineQ.text.trim()) return;
-                                                    await sessionService.addQuestion({ text: inlineQ.text, options: inlineQ.options, correct_option: inlineQ.correct_option, order_index: questions.length + 1 });
+                                                    if (!inlineQ.text.trim()) {
+                                                        setInlineQErrors({ text: 'Question text is required', options: [] });
+                                                        return;
+                                                    }
+                                                    const textErr = validateQuestionText(inlineQ.text);
+                                                    const optsErr = inlineQ.options.map(o => {
+                                                        const err = validateOptionText(o);
+                                                        return err === null ? undefined : err;
+                                                    });
+                                                    if (textErr || optsErr.some(e => e)) {
+                                                        setInlineQErrors({ text: textErr || undefined, options: optsErr });
+                                                        return;
+                                                    }
+                                                    setInlineQErrors({});
+                                                    await sessionService.addQuestion({
+                                                        text: sanitizeQuestionText(inlineQ.text),
+                                                        options: inlineQ.options.map(o => sanitizeOptionText(o)),
+                                                        correct_option: inlineQ.correct_option,
+                                                        order_index: questions.length + 1
+                                                    });
                                                     await loadQuestions();
                                                     setInlineQ({ text: '', options: ['', '', '', ''], correct_option: 'A' });
                                                 }} className="ml-auto px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition-all active:scale-95 flex items-center gap-1">
