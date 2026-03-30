@@ -1,6 +1,7 @@
 import { supabase } from "@/lib/supabase";
 import { type QuizState, type Team, type Answer, type QuizStatus } from "@/data/session";
 import { sanitizeTeamName, sanitizeMemberName, sanitizeQuestionText, sanitizeOptionText } from "@/lib/sanitize";
+import { QUIZ_CONFIG } from "@/lib/config";
 
 export const STATE_ID = 1;
 
@@ -103,41 +104,34 @@ export const sessionService = {
      * Max points at 30s remaining is 2x basePoints
      * Min points at 0s remaining is 1x basePoints
      */
-    calculateFFFPoints(timeLeft: number, basePoints: number = 100): number {
-        const bonus = Math.floor((Math.max(0, timeLeft) / 30) * basePoints);
+    calculateFFFPoints(timeLeft: number, basePoints: number = QUIZ_CONFIG.BASE_POINTS): number {
+        const bonus = Math.floor((Math.max(0, timeLeft) / QUIZ_CONFIG.DEFAULT_TIMER_SECONDS) * basePoints);
         return basePoints + bonus;
     },
 
     /**
-     * Submit an answer with FFF points calculation
+     * Submit an answer securely - server computes correctness
+     * Prevents clients from sending fake is_correct values
      */
-    async submitAnswer(answerData: Omit<Answer, 'id' | 'answered_at' | 'points_awarded'>, timeLeft: number) {
-        const points = answerData.is_correct ? this.calculateFFFPoints(timeLeft) : 0;
+    async submitAnswerSecure(
+        teamId: string,
+        questionId: string,
+        selectedOption: 'A' | 'B' | 'C' | 'D',
+        timeLeft: number
+    ): Promise<{ answer_id: string; points_awarded: number; is_correct: boolean }> {
+        const { data, error } = await supabase.rpc('submit_answer_secure', {
+            p_team_id: teamId,
+            p_question_id: questionId,
+            p_selected_option: selectedOption,
+            p_time_remaining: timeLeft
+        });
 
-        const { error: answerError } = await supabase
-            .from('answers')
-            .insert([{ ...answerData, points_awarded: points }]);
-
-        if (answerError) {
-            console.error('Error submitting answer:', answerError.message);
-            throw answerError;
+        if (error) {
+            console.error('Error submitting answer:', error.message);
+            throw error;
         }
 
-        // If correct, update the team's total score
-        if (points > 0) {
-            const { error: teamError } = await supabase.rpc('increment_team_score', {
-                t_id: answerData.team_id,
-                points_to_add: points
-            });
-
-            if (teamError) {
-                // Fallback if RPC isn't defined yet: fetch and update
-                const { data: team } = await supabase.from('teams').select('score').eq('id', answerData.team_id).single();
-                if (team) {
-                    await supabase.from('teams').update({ score: team.score + points }).eq('id', answerData.team_id);
-                }
-            }
-        }
+        return data;
     },
 
     /**
@@ -145,7 +139,7 @@ export const sessionService = {
      */
     async startQuestion(index: number) {
         const timerEnd = new Date();
-        timerEnd.setSeconds(timerEnd.getSeconds() + 30); // 30 seconds to answer
+        timerEnd.setSeconds(timerEnd.getSeconds() + QUIZ_CONFIG.DEFAULT_TIMER_SECONDS);
 
         return this.updateQuizState({
             status: 'question_active',
@@ -158,7 +152,7 @@ export const sessionService = {
     /**
      * Transition to Countdown (with anticipation timer)
      */
-    async startCountdown(targetQuestionIndex: number, stepNumber: number, durationSeconds: number = 3) {
+    async startCountdown(targetQuestionIndex: number, stepNumber: number, durationSeconds: number = QUIZ_CONFIG.COUNTDOWN_SECONDS) {
         const timerEnd = new Date();
         timerEnd.setSeconds(timerEnd.getSeconds() + durationSeconds);
 
@@ -175,7 +169,7 @@ export const sessionService = {
      */
     async activateQuestion() {
         const timerEnd = new Date();
-        timerEnd.setSeconds(timerEnd.getSeconds() + 30); // 30 seconds to answer
+        timerEnd.setSeconds(timerEnd.getSeconds() + QUIZ_CONFIG.DEFAULT_TIMER_SECONDS);
 
         // Maintain current_question and step_number, just change status and timer
         return this.updateQuizState({

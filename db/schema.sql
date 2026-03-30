@@ -248,6 +248,145 @@ BEGIN
 END;
 $$;
 
+-- Atomic answer submission with score update to prevent race conditions
+-- This handles both inserting the answer and updating the score in a single transaction
+CREATE OR REPLACE FUNCTION public.submit_answer_atomic(
+    p_team_id UUID,
+    p_question_id UUID,
+    p_selected_option TEXT,
+    p_is_correct BOOLEAN,
+    p_points INTEGER
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    new_answer_id UUID;
+    result JSONB;
+BEGIN
+    -- Insert answer and get the new ID
+    INSERT INTO public.answers (team_id, question_id, selected_option, is_correct, points_awarded)
+    VALUES (p_team_id, p_question_id, p_selected_option, p_is_correct, p_points)
+    RETURNING id INTO new_answer_id;
+    
+    -- Update score atomically if points were awarded
+    IF p_points > 0 THEN
+        UPDATE public.teams
+        SET score = score + p_points
+        WHERE id = p_team_id;
+    END IF;
+    
+    -- Return the result
+    result := jsonb_build_object(
+        'answer_id', new_answer_id,
+        'points_awarded', p_points,
+        'is_correct', p_is_correct
+    );
+    
+    RETURN result;
+END;
+$$;
+
+-- Secure answer submission: server-side correctness validation
+-- This prevents clients from sending fake is_correct values
+CREATE OR REPLACE FUNCTION public.submit_answer_secure(
+    p_team_id UUID,
+    p_question_id UUID,
+    p_selected_option TEXT,
+    p_time_remaining INTEGER
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    correct_opt CHAR(1);
+    is_correct BOOLEAN;
+    points INTEGER;
+    base_points INTEGER := 100;
+    new_answer_id UUID;
+    result JSONB;
+BEGIN
+    -- Get correct option from question
+    SELECT correct_option INTO correct_opt
+    FROM public.questions
+    WHERE id = p_question_id;
+
+    IF correct_opt IS NULL THEN
+        RAISE EXCEPTION 'Question not found';
+    END IF;
+
+    -- Compute correctness server-side
+    is_correct := UPPER(p_selected_option) = correct_opt;
+
+    -- Calculate FFF points (Fastest Finger First)
+    IF is_correct THEN
+        points := base_points + FLOOR((GREATEST(0, p_time_remaining) / 30.0) * base_points);
+    ELSE
+        points := 0;
+    END IF;
+
+    -- Insert answer
+    INSERT INTO public.answers (team_id, question_id, selected_option, is_correct, points_awarded)
+    VALUES (p_team_id, p_question_id, UPPER(p_selected_option), is_correct, points)
+    RETURNING id INTO new_answer_id;
+
+    -- Update score if correct
+    IF points > 0 THEN
+        UPDATE public.teams
+        SET score = score + points
+        WHERE id = p_team_id;
+    END IF;
+
+    -- Return the result
+    result := jsonb_build_object(
+        'answer_id', new_answer_id,
+        'points_awarded', points,
+        'is_correct', is_correct
+    );
+
+    RETURN result;
+END;
+$$;
+
+-- Secure question getter: only reveals answer during reveal state
+CREATE OR REPLACE FUNCTION public.get_current_question_secure()
+RETURNS TABLE(
+    id UUID,
+    text TEXT,
+    options JSONB,
+    correct_option CHAR(1),
+    order_index INTEGER,
+    status VARCHAR
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    current_q_index INTEGER;
+    current_status VARCHAR;
+BEGIN
+    -- Get current question index and status
+    SELECT q.current_question, q.status INTO current_q_index, current_status
+    FROM public.quiz_state q WHERE q.id = 1;
+
+    RETURN QUERY
+    SELECT
+        q.id,
+        q.text,
+        q.options,
+        CASE
+            WHEN current_status IN ('answer_reveal', 'leaderboard', 'finished') THEN q.correct_option
+            ELSE NULL::CHAR(1)
+        END,
+        q.order_index,
+        current_status
+    FROM public.questions q
+    WHERE q.order_index = current_q_index;
+END;
+$$;
+
 -- RESET SESSION (run from admin dashboard)
 -- DELETE FROM public.answers;
 -- DELETE FROM public.teams;

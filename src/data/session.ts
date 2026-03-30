@@ -30,3 +30,43 @@ export interface Answer {
     points_awarded: number;
     answered_at: string;
 }
+
+export interface Question {
+    id: string;
+    text: string;
+    options: string[];
+    correct_option: 'A' | 'B' | 'C' | 'D';
+    order_index: number;
+}
+
+export interface AnswerStats {
+    A: number;
+    B: number;
+    C: number;
+    D: number;
+    total: number;
+}
+
+export interface LeaderboardEntry {
+    team_name: string;
+    score: number;
+    rank: number;
+}
+
+export interface TeamInfo {
+    id: string;
+    name: string;
+}
+
+export interface RegData {
+    teamName: string;
+    member1: string;
+    member2: string;
+    member3: string;
+    member4: string;
+}
+
+export interface RegErrors {
+    teamName?: string;
+    member1?: string;
+}

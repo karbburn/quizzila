@@ -1,18 +1,14 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
-import { type QuizState, type Team, type Answer } from "@/data/session";
-import {
-    Play, SkipForward, RotateCcw, Users, Activity, ShieldAlert, Trophy, Timer,
-    Plus, Trash2, PenLine, Pause, PlayCircle, Clock, BarChart3, ListOrdered,
-    Settings, Zap, Upload, CheckCircle2, AlertCircle, Eye, Lock, Unlock,
-    ChevronRight
-} from "lucide-react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
+import { type QuizState, type Question, type AnswerStats } from "@/data/session";
+import { ShieldAlert, Pause, PlayCircle, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ToggleTheme } from "@/components/ui/toggle-theme";
 import { sessionService } from "@/services/sessionService";
 import { supabase } from "@/lib/supabase";
 import { sanitizeQuestionText, sanitizeOptionText, validateQuestionText, validateOptionText } from "@/lib/sanitize";
+import { QuizControl, QuestionManager, ConfirmDialog, AddQuestionModal } from "@/components/admin";
 
 type AdminTab = "control" | "questions" | "settings";
 
@@ -22,11 +18,23 @@ export default function AdminDashboard() {
     const [activeTab, setActiveTab] = useState<AdminTab>("control");
 
     // Live Control
-    const [teamCount, setTeamCount] = useState(0);
+    const [teamCount, setTeamCountState] = useState(0);
+    const setTeamCount = useCallback((value: number | ((prev: number) => number)) => {
+        if (typeof value === 'function') {
+            setTeamCountState(prev => {
+                const next = value(prev);
+                teamCountRef.current = next;
+                return next;
+            });
+        } else {
+            setTeamCountState(value);
+            teamCountRef.current = value;
+        }
+    }, []);
     const [teams, setTeams] = useState<{ name: string; score: number; answers: number }[]>([]);
     const [allTeams, setAllTeams] = useState<{ team_name: string; member1: string; created_at: string }[]>([]);
-    const [answerStats, setAnswerStats] = useState<{ A: number; B: number; C: number; D: number; total: number }>({ A: 0, B: 0, C: 0, D: 0, total: 0 });
-    const [questions, setQuestions] = useState<any[]>([]);
+    const [answerStats, setAnswerStats] = useState<AnswerStats>({ A: 0, B: 0, C: 0, D: 0, total: 0 });
+    const [questions, setQuestions] = useState<Question[]>([]);
     const [answersLocked, setAnswersLocked] = useState(false);
 
     // Timer
@@ -38,17 +46,19 @@ export default function AdminDashboard() {
     // Questions Manager
     const [importText, setImportText] = useState("");
     const [importStatus, setImportStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
-    const [editingQ, setEditingQ] = useState<any | null>(null);
+    const [editingQ, setEditingQ] = useState<string | null>(null);
     const [showAddModal, setShowAddModal] = useState(false);
     const [newQ, setNewQ] = useState({ text: "", options: ["", "", "", ""], correct_option: "A", order_index: 0 });
     const [newQErrors, setNewQErrors] = useState<{ text?: string; options?: (string | undefined)[] }>({});
     const [showInlineAdd, setShowInlineAdd] = useState(false);
     const [inlineQ, setInlineQ] = useState({ text: "", options: ["", "", "", ""], correct_option: "A" });
     const [inlineQErrors, setInlineQErrors] = useState<{ text?: string; options?: (string | undefined)[] }>({});
-    const [savingAll, setSavingAll] = useState(false);
 
     // Confirmation dialog
     const [confirmAction, setConfirmAction] = useState<{ message: string; onConfirm: () => void } | null>(null);
+
+    // Ref for fresh team count to avoid stale closure in answer subscription
+    const teamCountRef = useRef(0);
 
     const loadQuestions = useCallback(async () => {
         const q = await sessionService.getQuestions();
@@ -56,7 +66,6 @@ export default function AdminDashboard() {
     }, []);
 
     const loadTeams = useCallback(async () => {
-        // Top 10 for Realtime Leaderboard preview
         const { data: topData } = await supabase.from('teams').select('id, team_name, score').order('score', { ascending: false }).limit(10);
         if (topData) {
             const teamsWithAnswers = await Promise.all(topData.map(async (t: any) => {
@@ -66,12 +75,11 @@ export default function AdminDashboard() {
             setTeams(teamsWithAnswers);
         }
 
-        // All teams for Teams Joined Monitor
         const { data: allData } = await supabase.from('teams').select('team_name, member1, created_at').order('created_at', { ascending: true });
         if (allData) setAllTeams(allData);
     }, []);
 
-    // ── Init ──
+    // Init
     useEffect(() => {
         const init = async () => {
             const state = await sessionService.getQuizState();
@@ -90,17 +98,12 @@ export default function AdminDashboard() {
             loadTeams();
         });
         const answerSub = sessionService.subscribeToAnswers(async () => {
-            // Re-fetch stats to get accurate data
             if (quizState?.status === 'question_active' && questions.length > 0) {
                 const q = questions[quizState.current_question];
                 if (q) {
                     const stats = await sessionService.getAnswerStats(q.id);
                     setAnswerStats(stats);
-
-                    // Automatic locking when all teams have answered
-                    // We check if stats.total >= teamCount (teamCount is fetched in init/teamSub)
-                    // Added a delay or refetch of teamCount might be safer but this is reactive
-                    if (stats.total > 0 && teamCount > 0 && stats.total >= teamCount) {
+                    if (stats.total > 0 && teamCountRef.current > 0 && stats.total >= teamCountRef.current) {
                         sessionService.lockAnswers();
                     }
                 }
@@ -110,7 +113,7 @@ export default function AdminDashboard() {
         return () => { stateSub.unsubscribe(); teamSub.unsubscribe(); answerSub.unsubscribe(); };
     }, [loadQuestions, loadTeams]);
 
-    // ── Refresh stats on question change ──
+    // Refresh stats on question change
     useEffect(() => {
         if (quizState?.status === 'question_active' && questions.length > 0) {
             const q = questions[quizState.current_question];
@@ -119,12 +122,12 @@ export default function AdminDashboard() {
         }
     }, [quizState?.current_question, quizState?.status, questions]);
 
-    // ── Refresh leaderboard when status changes ──
+    // Refresh leaderboard when status changes
     useEffect(() => {
         if (quizState?.status === 'leaderboard' || quizState?.status === 'finished') loadTeams();
     }, [quizState?.status, loadTeams]);
 
-    // ── Live Timer ──
+    // Live Timer
     useEffect(() => {
         if (!quizState?.timer_end) { setLiveTimer(0); return; }
         const tick = () => {
@@ -136,7 +139,7 @@ export default function AdminDashboard() {
         return () => clearInterval(interval);
     }, [quizState?.timer_end]);
 
-    // ── Countdown auto-advance ──
+    // Countdown auto-advance
     useEffect(() => {
         if (quizState?.status === 'countdown' && !loading) {
             const timeDiff = quizState.timer_end ? Math.max(50, new Date(quizState.timer_end).getTime() - Date.now() + 200) : 3200;
@@ -145,7 +148,7 @@ export default function AdminDashboard() {
         }
     }, [quizState?.status, quizState?.timer_end, loading]);
 
-    // ── Handlers ──
+    // Handlers
     const handleStartQuiz = () => sessionService.startCountdown(0, 1, 3);
     const handleNextQuestion = () => {
         if (!quizState) return;
@@ -182,14 +185,12 @@ export default function AdminDashboard() {
             const parsed = JSON.parse(importText);
             if (!Array.isArray(parsed)) throw new Error("Must be a JSON array");
 
-            // Validate and sanitize each question before importing
             const sanitized = parsed.map((q: any) => ({
                 ...q,
                 question: q.question ? sanitizeQuestionText(String(q.question)) : '',
                 options: Array.isArray(q.options) ? q.options.map((o: any) => sanitizeOptionText(String(o))) : [],
             }));
 
-            // Validate required fields
             for (let i = 0; i < sanitized.length; i++) {
                 const q = sanitized[i];
                 if (!q.question) throw new Error(`Question ${i + 1}: text is required`);
@@ -216,11 +217,16 @@ export default function AdminDashboard() {
         });
     };
 
+    const handleEditQuestion = (q: Question) => {
+        setNewQ({ text: q.text, options: q.options, correct_option: q.correct_option, order_index: q.order_index });
+        setEditingQ(q.id);
+        setShowAddModal(true);
+    };
+
     const handleSaveQuestion = async () => {
-        // Validate question text
         const textError = validateQuestionText(newQ.text);
         const optionErrors: string[] = [];
-        newQ.options.forEach((opt, i) => {
+        newQ.options.forEach((opt) => {
             const err = validateOptionText(opt);
             optionErrors.push(err || '');
         });
@@ -256,92 +262,63 @@ export default function AdminDashboard() {
         }
     };
 
-    if (loading) return <div className="min-h-screen flex items-center justify-center bg-background"><div className="animate-spin w-8 h-8 border-4 border-yellow-500 border-t-transparent rounded-full" /></div>;
-
-    const currentQ = questions[quizState?.current_question ?? 0];
-    const progressPct = questions.length > 0 ? (((quizState?.current_question ?? 0) + 1) / questions.length) * 100 : 0;
-
-    const statusColor: Record<string, string> = {
-        waiting: "bg-yellow-500",
-        countdown: "bg-blue-500",
-        question_active: "bg-emerald-500",
-        question_locked: "bg-red-500",
-        answer_reveal: "bg-orange-500",
-        leaderboard: "bg-purple-500",
-        finished: "bg-gray-500"
+    const handleSaveInlineQuestion = async () => {
+        if (!inlineQ.text.trim()) {
+            setInlineQErrors({ text: 'Question text is required', options: [] });
+            return;
+        }
+        const textErr = validateQuestionText(inlineQ.text);
+        const optsErr = inlineQ.options.map(o => {
+            const err = validateOptionText(o);
+            return err === null ? undefined : err;
+        });
+        if (textErr || optsErr.some(e => e)) {
+            setInlineQErrors({ text: textErr || undefined, options: optsErr });
+            return;
+        }
+        setInlineQErrors({});
+        await sessionService.addQuestion({
+            text: sanitizeQuestionText(inlineQ.text),
+            options: inlineQ.options.map(o => sanitizeOptionText(o)),
+            correct_option: inlineQ.correct_option,
+            order_index: questions.length + 1
+        });
+        await loadQuestions();
+        setInlineQ({ text: '', options: ['', '', '', ''], correct_option: 'A' });
     };
+
+    const handlePushLive = (orderIndex: number, stepNumber: number) => {
+        sessionService.startCountdown(orderIndex, stepNumber, 3);
+    };
+
+    if (loading) return <div className="min-h-screen flex items-center justify-center bg-background"><div className="animate-spin w-8 h-8 border-4 border-yellow-500 border-t-transparent rounded-full" /></div>;
 
     return (
         <div className="min-h-screen bg-background text-slate-200 font-sans text-sm">
-            {/* ── Confirmation Dialog ── */}
+            {/* Confirmation Dialog */}
             {confirmAction && (
-                <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center animate-in fade-in duration-200">
-                    <div className="bg-card border border-slate-600 rounded-xl p-6 max-w-sm w-full mx-4 space-y-4 shadow-2xl">
-                        <h3 className="text-lg font-black uppercase tracking-tight">Are You Sure?</h3>
-                        <p className="text-slate-400 text-sm">{confirmAction.message}</p>
-                        <div className="flex gap-3">
-                            <button onClick={confirmAction.onConfirm} className="flex-1 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold uppercase tracking-wider rounded-lg transition-all active:scale-95">Confirm</button>
-                            <button onClick={() => setConfirmAction(null)} className="flex-1 py-3 bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold uppercase tracking-wider rounded-lg transition-all active:scale-95">Cancel</button>
-                        </div>
-                    </div>
-                </div>
+                <ConfirmDialog
+                    message={confirmAction.message}
+                    onConfirm={confirmAction.onConfirm}
+                    onCancel={() => setConfirmAction(null)}
+                />
             )}
 
-            {/* ── Add Question Modal ── */}
+            {/* Add Question Modal */}
             {showAddModal && (
-                <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center animate-in fade-in duration-200">
-                    <div className="bg-card border border-slate-600 rounded-xl p-6 max-w-lg w-full mx-4 space-y-4 shadow-2xl">
-                        <h3 className="text-lg font-black uppercase tracking-tight">{editingQ ? 'Edit' : 'Add'} Question</h3>
-                        <div className="space-y-3">
-                            <div>
-                                <label className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Question Text</label>
-                                <input value={newQ.text} onChange={e => {
-                                    setNewQ({ ...newQ, text: sanitizeQuestionText(e.target.value) });
-                                    if (newQErrors.text) setNewQErrors({ ...newQErrors, text: undefined });
-                                }} className="w-full bg-background border border-slate-600 px-3 py-2 rounded-lg mt-1 focus:border-blue-500 outline-none" />
-                                {newQErrors.text && <p className="text-[10px] text-red-400 font-bold mt-1">{newQErrors.text}</p>}
-                            </div>
-                            <div className="grid grid-cols-2 gap-2">
-                                {['A', 'B', 'C', 'D'].map((opt, i) => (
-                                    <div key={opt}>
-                                        <label className="text-[10px] uppercase font-bold text-slate-500">Option {opt}</label>
-                                        <input value={newQ.options[i]} onChange={e => {
-                                            const o = [...newQ.options];
-                                            o[i] = sanitizeOptionText(e.target.value);
-                                            setNewQ({ ...newQ, options: o });
-                                            if (newQErrors.options) {
-                                                const newOpts = [...newQErrors.options];
-                                                newOpts[i] = undefined;
-                                                setNewQErrors({ ...newQErrors, options: newOpts });
-                                            }
-                                        }} className="w-full bg-background border border-slate-600 px-3 py-2 rounded-lg mt-1 focus:border-blue-500 outline-none" />
-                                        {newQErrors.options?.[i] && <p className="text-[9px] text-red-400 font-bold mt-1">{newQErrors.options[i]}</p>}
-                                    </div>
-                                ))}
-                            </div>
-                            <div>
-                                <label className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Correct Option</label>
-                                <div className="flex gap-2 mt-1">
-                                    {['A', 'B', 'C', 'D'].map(opt => (
-                                        <button key={opt} onClick={(e) => { e.preventDefault(); setNewQ({ ...newQ, correct_option: opt }); }} className={cn("w-12 py-2 rounded-lg font-bold transition-all", newQ.correct_option === opt ? "bg-emerald-600 text-white" : "bg-slate-700 text-slate-400 hover:bg-slate-600")}>{opt}</button>
-                                    ))}
-                                </div>
-                            </div>
-                            <div>
-                                <label className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Points A-D</label>
-                                <input type="number" defaultValue={100} className="w-full bg-background border border-slate-600 px-3 py-2 rounded-lg mt-1 focus:border-blue-500 outline-none" />
-                            </div>
-                        </div>
-                        <div className="flex gap-3 pt-2">
-                            <button onClick={handleSaveQuestion} className="flex-1 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold uppercase rounded-lg transition-all active:scale-95">{editingQ ? 'Update' : 'Save'} Question</button>
-                            <button onClick={() => { setShowAddModal(false); setEditingQ(null); }} className="flex-1 py-3 bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold uppercase rounded-lg transition-all active:scale-95">Cancel</button>
-                        </div>
-                    </div>
-                </div>
+                <AddQuestionModal
+                    editingQ={editingQ}
+                    newQ={newQ}
+                    newQErrors={newQErrors}
+                    onSave={handleSaveQuestion}
+                    onCancel={() => { setShowAddModal(false); setEditingQ(null); }}
+                    onSetNewQ={setNewQ}
+                    onSetNewQErrors={setNewQErrors}
+                />
             )}
 
             <div className="max-w-6xl mx-auto p-4 space-y-4">
-                {/* ── Tab Navigation ── */}
+                {/* Tab Navigation */}
                 <div className="flex items-center gap-1 border-b border-slate-700 pb-0">
                     {([
                         { id: "control" as AdminTab, label: "Live Quiz Control" },
@@ -366,348 +343,53 @@ export default function AdminDashboard() {
                     </div>
                 </div>
 
-                {/* ══════════════════════════════════════════════ */}
-                {/* TAB 1: LIVE QUIZ CONTROL                     */}
-                {/* ══════════════════════════════════════════════ */}
+                {/* TAB 1: LIVE QUIZ CONTROL */}
                 {activeTab === "control" && (
-                    <div className="space-y-4 animate-in fade-in duration-200">
-                        {/* ── Status Header Bar ── */}
-                        <div className="bg-card border border-slate-700 rounded-lg p-3 flex items-center gap-4 flex-wrap">
-                            <span className="font-bold text-slate-300">Live Event Quiz</span>
-                            <span className="text-slate-500">|</span>
-                            <span className="text-slate-400">Question <span className="font-black text-white">{quizState?.step_number ?? 1}</span> / {questions.length}</span>
-                            <span className="text-slate-500">|</span>
-                            {/* Progress Bar */}
-                            <div className="flex items-center gap-2 flex-1 min-w-[120px]">
-                                <span className="text-slate-500 text-xs">Progress</span>
-                                <div className="flex-1 h-3 bg-slate-700 rounded-full overflow-hidden">
-                                    <div className="h-full bg-blue-500 rounded-full transition-all duration-500" style={{ width: `${progressPct}%` }} />
-                                </div>
-                            </div>
-                            <span className="text-slate-500">|</span>
-                            <span className="text-slate-400">Timer: <span className={cn("font-black", liveTimer < 7 ? "text-red-400" : "text-white")}>{liveTimer}s</span></span>
-                            <span className="text-slate-500">|</span>
-                            <span className="text-slate-400">Status: <span className={cn("inline-block w-2.5 h-2.5 rounded-full ml-1", statusColor[quizState?.status ?? 'waiting'])} /> <span className="font-bold text-white ml-1 capitalize">{quizState?.status?.replace('_', ' ')}</span></span>
-                        </div>
-
-                        {/* ── Control Buttons Row ── */}
-                        <div className="flex flex-wrap gap-3">
-                            <button onClick={handleStartQuiz} disabled={quizState?.status !== 'waiting'} className="px-6 py-3 bg-slate-700 hover:bg-slate-600 disabled:opacity-30 disabled:cursor-not-allowed border border-slate-600 rounded-lg font-bold uppercase text-xs tracking-wider transition-all active:scale-95 flex items-center gap-2">
-                                <Play className="w-4 h-4" /> Start Quiz
-                            </button>
-                            <button onClick={handleNextQuestion} disabled={quizState?.status === 'waiting' || quizState?.status === 'finished'} className="px-8 py-3 bg-emerald-700 hover:bg-emerald-600 disabled:opacity-30 disabled:cursor-not-allowed border border-emerald-600 rounded-lg font-bold uppercase text-xs tracking-wider transition-all active:scale-95 flex items-center gap-2 text-emerald-100">
-                                <ChevronRight className="w-5 h-5" /> Next Question
-                            </button>
-                        </div>
-                        <div className="flex flex-wrap gap-3">
-                            <button onClick={handleShowLeaderboard} className="px-4 py-2.5 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded-lg font-bold uppercase text-[10px] tracking-wider transition-all active:scale-95">Show Leaderboard</button>
-                            <button onClick={handleRevealAnswer} className="px-4 py-2.5 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded-lg font-bold uppercase text-[10px] tracking-wider transition-all active:scale-95">Reveal Answer</button>
-                            <button onClick={handleSkip} className="px-4 py-2.5 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded-lg font-bold uppercase text-[10px] tracking-wider transition-all active:scale-95">Skip Question</button>
-                            <button
-                                onClick={handleLockAnswers}
-                                disabled={quizState?.status !== 'question_active'}
-                                className="px-4 py-2.5 bg-red-900/40 hover:bg-red-900/60 disabled:opacity-30 disabled:cursor-not-allowed border border-red-500/30 rounded-lg font-bold uppercase text-[10px] tracking-wider transition-all active:scale-95 flex items-center gap-1.5 text-red-100"
-                            >
-                                <Lock className="w-3 h-3" /> Lock Answers
-                            </button>
-                            {/* Status Indicators */}
-                            <div className="ml-auto flex items-center gap-3 bg-slate-800/50 px-4 py-2 rounded-lg border border-slate-700">
-                                <span className="flex items-center gap-1.5 text-[10px]"><span className={cn("w-2 h-2 rounded-full", quizState?.status === 'waiting' ? "bg-yellow-500" : "bg-slate-600")} /> Waiting</span>
-                                <span className="flex items-center gap-1.5 text-[10px]"><span className={cn("w-2 h-2 rounded-full", quizState?.status === 'question_active' ? "bg-emerald-500" : "bg-slate-600")} /> Active</span>
-                                <span className="flex items-center gap-1.5 text-[10px]"><span className={cn("w-2 h-2 rounded-full", quizState?.status === 'question_locked' ? "bg-red-500" : "bg-slate-600")} /> Locked</span>
-                                <span className="flex items-center gap-1.5 text-[10px]"><span className={cn("w-2 h-2 rounded-full", quizState?.status === 'answer_reveal' ? "bg-orange-500" : "bg-slate-600")} /> Reveal</span>
-                                <span className="flex items-center gap-1.5 text-[10px]"><span className={cn("w-2 h-2 rounded-full", quizState?.status === 'leaderboard' ? "bg-purple-500" : "bg-slate-600")} /> Leaderboard</span>
-                                <span className="flex items-center gap-1.5 text-[10px]"><span className={cn("w-2 h-2 rounded-full", quizState?.status === 'finished' ? "bg-gray-500" : "bg-slate-600")} /> Finished</span>
-                            </div>
-                        </div>
-
-                        {/* ── Main Content Grid ── */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {/* Left: Question Panel + Correct Answer */}
-                            <div className="space-y-4">
-                                {/* Question Panel */}
-                                <div className="bg-card border border-slate-700 rounded-lg p-5 space-y-4">
-                                    <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Question {quizState?.step_number ?? 1}:</p>
-                                    <p className="text-lg font-bold leading-snug">{currentQ?.text || "No active question"}</p>
-                                    {currentQ && (
-                                        <div className="grid grid-cols-2 gap-3">
-                                            {(currentQ.options || []).map((opt: string, i: number) => {
-                                                const letter = ['A', 'B', 'C', 'D'][i];
-                                                const isCorrect = currentQ.correct_option === letter;
-                                                return (
-                                                    <div key={i} className={cn("flex items-center gap-2 py-2", isCorrect && answersLocked ? "text-emerald-400" : "text-slate-300")}>
-                                                        <span className="font-black text-lg">{letter}</span>
-                                                        <span className="font-medium">{opt}</span>
-                                                        {isCorrect && answersLocked && <CheckCircle2 className="w-4 h-4 text-emerald-400 ml-auto" />}
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    )}
-                                </div>
-
-                                {/* Correct Answer Display */}
-                                <div className="bg-card border border-slate-700 rounded-lg p-5 space-y-2">
-                                    <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Question Display Panel</p>
-                                    {currentQ ? (
-                                        <div>
-                                            <p className="text-slate-400 font-bold">Correct Answer:</p>
-                                            <p className="text-xl font-black text-white">
-                                                Option {currentQ.correct_option}, {currentQ.options?.[['A', 'B', 'C', 'D'].indexOf(currentQ.correct_option)] ?? ''}
-                                            </p>
-                                        </div>
-                                    ) : (
-                                        <p className="text-slate-500 italic">Waiting for question...</p>
-                                    )}
-                                </div>
-                            </div>
-
-                            {/* Right: Live Stats + Leaderboard */}
-                            <div className="space-y-4">
-                                {/* Answer Progress Tracker */}
-                                <div className="bg-card border border-slate-700 rounded-lg p-5 space-y-4">
-                                    <div className="flex justify-between items-end">
-                                        <div className="space-y-1">
-                                            <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Answer Tracker</p>
-                                            <p className="text-xl font-black text-white tabular-nums">
-                                                {answerStats.total} <span className="text-slate-500 text-sm font-bold">/ {teamCount}</span>
-                                            </p>
-                                        </div>
-                                        <div className="text-right">
-                                            <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Status</p>
-                                            <p className={cn(
-                                                "text-xs font-black uppercase",
-                                                answerStats.total >= teamCount ? "text-emerald-400" : "text-yellow-500"
-                                            )}>
-                                                {answerStats.total >= teamCount ? "All Answered" : "Awaiting Answers"}
-                                            </p>
-                                        </div>
-                                    </div>
-
-                                    <div className="relative h-6 bg-slate-800 rounded-lg overflow-hidden border border-slate-700 p-1">
-                                        <div className="absolute inset-y-1 left-1 bg-gradient-to-r from-blue-600 to-emerald-500 rounded-md transition-all duration-1000 flex items-center justify-center overflow-hidden"
-                                            style={{ width: `calc(${teamCount > 0 ? (answerStats.total / teamCount) * 100 : 0}% - 8px)` }}>
-                                            {(answerStats.total / (teamCount || 1)) > 0.1 && (
-                                                <span className="text-[8px] font-black text-white uppercase whitespace-nowrap">
-                                                    {'█'.repeat(Math.ceil((answerStats.total / (teamCount || 1)) * 20))}
-                                                </span>
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest text-center italic">
-                                        {quizState?.status === 'question_locked' ? "Submissions Locked" : "Real-time subscription active"}
-                                    </p>
-                                </div>
-
-                                {/* Live Response Statistics */}
-                                <div className="bg-card border border-slate-700 rounded-lg p-5 space-y-3">
-                                    <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Live Response Statistics</p>
-                                    {['A', 'B', 'C', 'D'].map(opt => {
-                                        const count = answerStats[opt as 'A' | 'B' | 'C' | 'D'];
-                                        const maxCount = Math.max(answerStats.A, answerStats.B, answerStats.C, answerStats.D, 1);
-                                        const barWidth = (count / maxCount) * 100;
-                                        return (
-                                            <div key={opt} className="flex items-center gap-3">
-                                                <span className="font-black w-4 text-slate-400">{opt}</span>
-                                                <div className="flex-1 h-5 bg-slate-700/50 rounded overflow-hidden">
-                                                    <div className="h-full bg-slate-500 rounded transition-all duration-300 flex items-center" style={{ width: `${Math.max(barWidth, 2)}%` }}>
-                                                        {count > 0 && <span className="text-[9px] font-bold text-white px-1">{'█'.repeat(Math.min(count, 20))}</span>}
-                                                    </div>
-                                                </div>
-                                                <span className="text-slate-400 font-bold tabular-nums w-8 text-right">— {count}</span>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* ── Teams & Leaderboard Section ── */}
-                        <hr className="border-slate-800 my-4" />
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {/* Left: Teams Joined Monitor */}
-                            <div className="bg-card border border-slate-700 rounded-lg p-5 space-y-3">
-                                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Teams Joined Monitor: <span className="text-white">{teamCount} Teams</span></p>
-                                <div className="space-y-1 max-h-[350px] overflow-y-auto pr-2">
-                                    {allTeams.length === 0 ? (
-                                        <p className="text-slate-500 text-xs italic">No teams joined yet</p>
-                                    ) : (
-                                        allTeams.map((t, i) => (
-                                            <div key={i} className="flex flex-col sm:flex-row justify-between sm:items-center py-2 border-b border-slate-700/50 last:border-0 gap-1">
-                                                <div className="flex flex-col">
-                                                    <span className="font-bold text-sm text-slate-200">{t.team_name}</span>
-                                                    <span className="text-slate-500 text-[10px] uppercase tracking-wider">Leader: <span className="text-slate-400">{t.member1}</span></span>
-                                                </div>
-                                                <span className="text-slate-500 text-[10px] bg-slate-800/50 px-2 py-1 rounded inline-block w-max">
-                                                    Joined {new Date(t.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                                </span>
-                                            </div>
-                                        ))
-                                    )}
-                                </div>
-                            </div>
-
-                            {/* Right: Realtime Leaderboard Preview */}
-                            <div className="bg-card border border-slate-700 rounded-lg p-5 space-y-3 relative flex flex-col">
-                                <div className="absolute top-4 right-5"><span className="text-[9px] uppercase tracking-widest text-purple-400 font-bold bg-purple-500/10 px-2 py-1 rounded">Admin Only Preview</span></div>
-                                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-4">Realtime Leaderboard</p>
-                                {teams.length === 0 ? (
-                                    <p className="text-slate-500 text-xs italic">No scores yet</p>
-                                ) : (
-                                    <div className="space-y-1 max-h-[350px] overflow-y-auto pr-2 mt-2">
-                                        {teams.map((t, i) => (
-                                            <div key={i} className="flex items-center gap-3 py-2 text-sm border-b border-slate-700/50 last:border-0">
-                                                <span className="text-slate-500 font-bold w-6 tabular-nums">{i + 1}.</span>
-                                                <span className="font-bold flex-1 text-slate-200 truncate">{t.name} <span className="ml-2 text-[10px] text-slate-500 font-normal">({t.answers} answers)</span></span>
-                                                <span className="font-black text-yellow-500 tabular-nums text-right">{t.score} pts</span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    </div>
+                    <QuizControl
+                        quizState={quizState}
+                        questions={questions}
+                        answerStats={answerStats}
+                        teamCount={teamCount}
+                        allTeams={allTeams}
+                        teams={teams}
+                        liveTimer={liveTimer}
+                        answersLocked={answersLocked}
+                        onStartQuiz={handleStartQuiz}
+                        onNextQuestion={handleNextQuestion}
+                        onShowLeaderboard={handleShowLeaderboard}
+                        onRevealAnswer={handleRevealAnswer}
+                        onSkip={handleSkip}
+                        onLockAnswers={handleLockAnswers}
+                    />
                 )}
 
-                {/* ══════════════════════════════════════════════ */}
-                {/* TAB 2: QUESTION MANAGER                      */}
-                {/* ══════════════════════════════════════════════ */}
+                {/* TAB 2: QUESTION MANAGER */}
                 {activeTab === "questions" && (
-                    <div className="space-y-4 animate-in fade-in duration-200">
-                        {/* Header */}
-                        <div className="bg-card border border-slate-700 rounded-lg p-3 flex items-center gap-4 flex-wrap">
-                            <span className="font-bold text-slate-300">Live Event Quiz</span>
-                            <span className="text-slate-500">|</span>
-                            <span className="text-slate-400">Question <span className="font-black text-white">{quizState?.step_number ?? 1}</span> / {questions.length}</span>
-                            <span className="text-slate-500">|</span>
-                            <span className="text-slate-400">Status: <span className="text-yellow-400 font-bold capitalize">{quizState?.status?.replace('_', ' ')}</span></span>
-                            <span className="text-slate-500">|</span>
-                            <span className="text-slate-400">Timer: <span className="font-bold text-white">{liveTimer}s</span></span>
-                        </div>
-
-                        <div className="flex gap-3 items-center">
-                            <button onClick={() => setShowAddModal(true)} className="px-4 py-2.5 bg-blue-600 hover:bg-blue-500 rounded-lg font-bold uppercase text-[10px] tracking-wider transition-all active:scale-95 flex items-center gap-1.5">
-                                <Plus className="w-3.5 h-3.5" /> Add Question
-                            </button>
-                            <button onClick={() => setShowInlineAdd(!showInlineAdd)} className="px-4 py-2.5 bg-emerald-700 hover:bg-emerald-600 border border-emerald-600 rounded-lg font-bold uppercase text-[10px] tracking-wider transition-all active:scale-95 flex items-center gap-1.5 text-emerald-100">
-                                <Plus className="w-3.5 h-3.5" /> Quick Add +
-                            </button>
-                            <button onClick={() => setImportText(importText ? "" : " ")} className="px-4 py-2.5 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded-lg font-bold uppercase text-[10px] tracking-wider transition-all active:scale-95 flex items-center gap-1.5">
-                                <Upload className="w-3.5 h-3.5" /> Bulk Import
-                            </button>
-                            <button onClick={async () => { setSavingAll(true); await loadQuestions(); setSavingAll(false); }} className="ml-auto px-5 py-2.5 bg-yellow-600 hover:bg-yellow-500 rounded-lg font-bold uppercase text-[10px] tracking-wider transition-all active:scale-95 flex items-center gap-1.5 text-black">
-                                <CheckCircle2 className="w-3.5 h-3.5" /> {savingAll ? 'Syncing...' : 'Save to Database'}
-                            </button>
-                        </div>
-
-                        {/* Bulk Import */}
-                        {importText !== "" && (
-                            <div className="bg-card border border-blue-500/30 rounded-lg p-4 space-y-3 animate-in slide-in-from-top-2">
-                                <p className="text-[10px] text-slate-500 font-medium">Paste JSON: <code className="text-blue-400">[{`{numb, question, answer, options[]}`}]</code></p>
-                                <textarea value={importText.trim()} onChange={(e) => setImportText(e.target.value)} placeholder='[{"numb": 1, "question": "...", "answer": "...", "options": ["...", "..."]}]' className="w-full h-32 bg-background border border-slate-600 p-3 rounded-lg font-mono text-xs focus:border-blue-500 outline-none" />
-                                <div className="flex items-center justify-between">
-                                    {importStatus && (
-                                        <div className={cn("flex items-center gap-2 text-xs font-bold", importStatus.type === 'success' ? "text-emerald-400" : "text-red-400")}>
-                                            {importStatus.type === 'success' ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
-                                            {importStatus.message}
-                                        </div>
-                                    )}
-                                    <button onClick={handleBulkImport} className="ml-auto px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg text-xs transition-all active:scale-95">Import</button>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Question Table */}
-                        <div className="bg-card border border-slate-700 rounded-lg overflow-hidden">
-                            <div className="grid grid-cols-[40px_1fr_80px_60px_60px] gap-2 px-4 py-2 bg-slate-800/50 border-b border-slate-700 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                                <span>Q#</span>
-                                <span>Short Question Preview</span>
-                                <span className="text-center">Push Live</span>
-                                <span className="text-center">Edit</span>
-                                <span className="text-center">Delete</span>
-                            </div>
-                            {questions.length === 0 ? (
-                                <p className="text-slate-500 text-xs italic py-8 text-center">No questions. Use Bulk Import or Add Question.</p>
-                            ) : (
-                                <div className="max-h-[55vh] overflow-y-auto divide-y divide-slate-700/50">
-                                    {questions.map((q) => (
-                                        <div key={q.id} className="grid grid-cols-[40px_1fr_80px_60px_60px] gap-2 px-4 py-2.5 hover:bg-slate-800/30 transition-colors items-center">
-                                            <span className="text-xs font-bold text-slate-500 tabular-nums">{q.order_index + 1}.</span>
-                                            <span className="text-xs truncate">{q.text}</span>
-                                            <button onClick={() => sessionService.startCountdown(q.order_index, (quizState?.step_number || 0) + 1, 3)} className="text-center text-[10px] font-bold text-purple-400 hover:text-purple-300 uppercase transition-colors px-2 py-1 bg-purple-500/10 rounded">Push Live</button>
-                                            <button onClick={() => {
-                                                setNewQ({ text: q.text, options: q.options, correct_option: q.correct_option, order_index: q.order_index });
-                                                setEditingQ(q.id);
-                                                setShowAddModal(true);
-                                            }} className="text-center text-[10px] font-bold text-blue-400 hover:text-blue-300 uppercase transition-colors">Edit</button>
-                                            <button onClick={() => handleDeleteQuestion(q.id)} className="text-center text-[10px] font-bold text-red-400 hover:text-red-300 uppercase transition-colors">Delete</button>
-                                        </div>
-                                    ))}
-                                    {/* Inline Quick Add Row */}
-                                    {showInlineAdd && (
-                                        <div className="px-4 py-3 bg-emerald-900/10 border-t border-emerald-500/20 space-y-3">
-                                            <div className="flex items-center gap-2">
-                                                <Plus className="w-4 h-4 text-emerald-400 shrink-0" />
-                                                <input value={inlineQ.text} onChange={e => {
-                                                    setInlineQ({ ...inlineQ, text: sanitizeQuestionText(e.target.value) });
-                                                    if (inlineQErrors.text) setInlineQErrors({ ...inlineQErrors, text: undefined });
-                                                }} placeholder="Type question text..." className="flex-1 bg-background border border-slate-600 px-3 py-2 rounded-lg text-xs focus:border-emerald-500 outline-none" />
-                                            </div>
-                                            {inlineQErrors.text && <p className="text-[9px] text-red-400 font-bold">{inlineQErrors.text}</p>}
-                                            {inlineQErrors.options?.some(o => o) && <p className="text-[9px] text-red-400 font-bold">Please fill all options</p>}
-                                            <div className="grid grid-cols-4 gap-2">
-                                                {['A', 'B', 'C', 'D'].map((opt, i) => (
-                                                    <input key={opt} value={inlineQ.options[i]} onChange={e => {
-                                                        const o = [...inlineQ.options];
-                                                        o[i] = sanitizeOptionText(e.target.value);
-                                                        setInlineQ({ ...inlineQ, options: o });
-                                                    }} placeholder={`Option ${opt}`} className="bg-background border border-slate-600 px-3 py-2 rounded-lg text-xs focus:border-emerald-500 outline-none" />
-                                                ))}
-                                            </div>
-                                            <div className="flex items-center gap-3">
-                                                <span className="text-[10px] text-slate-500 font-bold uppercase">Correct:</span>
-                                                {['A', 'B', 'C', 'D'].map(opt => (
-                                                    <button key={opt} onClick={() => setInlineQ({ ...inlineQ, correct_option: opt })} className={cn("w-8 py-1 rounded text-xs font-bold transition-all", inlineQ.correct_option === opt ? "bg-emerald-600 text-white" : "bg-slate-700 text-slate-400 hover:bg-slate-600")}>{opt}</button>
-                                                ))}
-                                                <button onClick={async () => {
-                                                    if (!inlineQ.text.trim()) {
-                                                        setInlineQErrors({ text: 'Question text is required', options: [] });
-                                                        return;
-                                                    }
-                                                    const textErr = validateQuestionText(inlineQ.text);
-                                                    const optsErr = inlineQ.options.map(o => {
-                                                        const err = validateOptionText(o);
-                                                        return err === null ? undefined : err;
-                                                    });
-                                                    if (textErr || optsErr.some(e => e)) {
-                                                        setInlineQErrors({ text: textErr || undefined, options: optsErr });
-                                                        return;
-                                                    }
-                                                    setInlineQErrors({});
-                                                    await sessionService.addQuestion({
-                                                        text: sanitizeQuestionText(inlineQ.text),
-                                                        options: inlineQ.options.map(o => sanitizeOptionText(o)),
-                                                        correct_option: inlineQ.correct_option,
-                                                        order_index: questions.length + 1
-                                                    });
-                                                    await loadQuestions();
-                                                    setInlineQ({ text: '', options: ['', '', '', ''], correct_option: 'A' });
-                                                }} className="ml-auto px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition-all active:scale-95 flex items-center gap-1">
-                                                    <CheckCircle2 className="w-3 h-3" /> Save
-                                                </button>
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-                        </div>
-                    </div>
+                    <QuestionManager
+                        quizState={quizState}
+                        questions={questions}
+                        liveTimer={liveTimer}
+                        importText={importText}
+                        importStatus={importStatus}
+                        showInlineAdd={showInlineAdd}
+                        inlineQ={inlineQ}
+                        inlineQErrors={inlineQErrors}
+                        savingAll={false}
+                        onSetShowAddModal={setShowAddModal}
+                        onSetShowInlineAdd={setShowInlineAdd}
+                        onSetImportText={setImportText}
+                        onSetInlineQ={setInlineQ}
+                        onSetInlineQErrors={setInlineQErrors}
+                        onBulkImport={handleBulkImport}
+                        onDeleteQuestion={handleDeleteQuestion}
+                        onEditQuestion={handleEditQuestion}
+                        onSaveInlineQuestion={handleSaveInlineQuestion}
+                        onLoadQuestions={loadQuestions}
+                        onPushLive={handlePushLive}
+                    />
                 )}
 
-                {/* ══════════════════════════════════════════════ */}
-                {/* TAB 3: SETTINGS / TIMER CONTROL               */}
-                {/* ══════════════════════════════════════════════ */}
+                {/* TAB 3: SETTINGS / TIMER CONTROL */}
                 {activeTab === "settings" && (
                     <div className="space-y-4 animate-in fade-in duration-200">
                         {/* Default Timer */}

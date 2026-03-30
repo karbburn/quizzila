@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { sessionService } from "@/services/sessionService";
 import { supabase } from "@/lib/supabase";
-import { type QuizState, type QuizStatus } from "@/data/session";
+import { type QuizState, type QuizStatus, type Question, type Team, type AnswerStats } from "@/data/session";
 
 export type ClientGameState = "entry" | "register" | "lobby" | "countdown" | "quiz" | "reveal" | "leaderboard" | "finished";
 
@@ -10,14 +10,22 @@ export function useGameSession() {
     const [quizStatus, setQuizStatus] = useState<QuizStatus>("waiting");
     const [currentQue, setCurrentQue] = useState(0);
     const [stepNumber, setStepNumber] = useState(1);
-    const [currentQuestionData, setCurrentQuestionData] = useState<any | null>(null);
+    const [currentQuestionData, setCurrentQuestionData] = useState<Question | null>(null);
     const [timeLeft, setTimeLeft] = useState(30);
     const [teamCount, setTeamCount] = useState(0);
-    const [allTeams, setAllTeams] = useState<any[]>([]);
-    const [answerStats, setAnswerStats] = useState<{ A: number, B: number, C: number, D: number, total: number }>({ A: 0, B: 0, C: 0, D: 0, total: 0 });
+    const [allTeams, setAllTeams] = useState<Team[]>([]);
+    const [answerStats, setAnswerStats] = useState<AnswerStats>({ A: 0, B: 0, C: 0, D: 0, total: 0 });
     const [isInitialized, setIsInitialized] = useState(false);
 
     // --- Real-time Sync Logic ---
+    // Use ref for stable callback reference to prevent re-subscriptions
+    const currentQuestionDataRef = useRef<Question | null>(null);
+
+    // Sync ref with state (in effect to avoid render-phase update)
+    useEffect(() => {
+        currentQuestionDataRef.current = currentQuestionData;
+    }, [currentQuestionData]);
+
     const handleStateUpdate = useCallback((state: QuizState) => {
         setQuizStatus(state.status);
         setCurrentQue(state.current_question);
@@ -111,9 +119,10 @@ export function useGameSession() {
 
         // 2.3 Subscribe to answers for live stats
         const answersSub = sessionService.subscribeToAnswers(() => {
-            // Re-fetch stats when a new answer comes in
-            if (currentQuestionData?.id) {
-                sessionService.getAnswerStats(currentQuestionData.id).then(setAnswerStats);
+            // Re-fetch stats when a new answer comes in - use ref to get fresh question data
+            const qData = currentQuestionDataRef.current;
+            if (qData?.id) {
+                sessionService.getAnswerStats(qData.id).then(setAnswerStats);
             }
         });
 
